@@ -26,6 +26,7 @@ import pypath.utils.mapping as mapping
 import pypath.share.curl as curl
 import pypath.resources.urls as urls
 import pypath.formats.obo as obo
+import pypath.inputs.uniprot as uniprot
 
 
 def hpo_annotations() -> dict[str, set[tuple]]:
@@ -49,21 +50,36 @@ def hpo_annotations() -> dict[str, set[tuple]]:
 
     result = collections.defaultdict(set)
 
+    uniprot_to_entrez = uniprot.uniprot_data("xref_geneid", "9606", True)
+    uniprot_to_entrez = {k: v.strip(";").split(";") for k, v in uniprot_to_entrez.items()}
+    
+    entrez_to_uniprot = {}
+    for k, v in uniprot_to_entrez.items():
+        for entrez in v:
+            if entrez in entrez_to_uniprot:
+                entrez_to_uniprot[entrez].append(k)
+            else:
+                entrez_to_uniprot[entrez] = [k]
+                
+                
+                
     for r in c.result:
 
         r = r.strip().split('\t')
 
-        uniprots = mapping.map_name(r[0], 'entrez', 'uniprot')
+        # uniprots = mapping.map_name(r[0], 'entrez', 'uniprot')
+        uniprots = entrez_to_uniprot.get(r[0], [])
 
-        for uniprot in uniprots:
+        if  uniprots: 
+            for prot in uniprots:
 
-            result[uniprot].add(
-                HpoAnnotation(
-                    entrez_gene_id = r[0],
-                    entrez_gene_symbol = r[1],
-                    hpo_id = r[2],
+                result[prot].add(
+                    HpoAnnotation(
+                        entrez_gene_id = r[0],
+                        entrez_gene_symbol = r[1],
+                        hpo_id = r[2],
+                    )
                 )
-            )
 
     return dict(result)
 
