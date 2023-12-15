@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Generator, Literal
 
 import collections
+import pandas as pd
 
 import pypath.resources.urls as urls
 import pypath.share.curl as curl
@@ -30,6 +31,7 @@ import pypath.share.curl as curl
 def compath_mappings(
         source_db: Literal['kegg', 'wikipathways', 'reactome'] | None = None,
         target_db: Literal['kegg', 'wikipathways', 'reactome'] | None = None,
+        return_df: bool = False,
     ) -> Generator[tuple] | pd.DataFrame:
     """
     Cross-database pathway to pathway mappings from Compath.
