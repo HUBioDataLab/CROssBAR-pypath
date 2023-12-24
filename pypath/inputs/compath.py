@@ -82,8 +82,8 @@ def _compath_mappings(
         line = line.strip().split('\t')
 
         if (
-            source_db is None or l[2] == source_db and
-            target_db is None or l[6] == target_db
+            source_db is None or line[2] == source_db and
+            target_db is None or line[6] == target_db
         ):
 
             for db_i, pw_i in zip((2, 6), (1, 5)):
