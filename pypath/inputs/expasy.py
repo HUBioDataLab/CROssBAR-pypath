@@ -51,13 +51,7 @@ def expasy_enzyme_classes(
         encoding='utf-8',
         default_mode='r',
     )
-    reec = re.compile(
-        r'^(\d+)\.\s?'
-        r'(?:(\d+))?-?\.\s*'
-        r'(?:(\d+))?-?\.\s*'
-        r'-?\s+'
-        r'([-\w\(\)\s\+]+)\.$'
-    )
+    reec = re.compile(r"^([\d ]+\.[\d\- ]+\.[\d\- ]+\. ?[\d\-]+) +(.+)\.$")
 
     result = []
 
