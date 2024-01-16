@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import collections
+import re
 
 from pypath.share import curl
 from pypath.resources.urls import urls
@@ -90,3 +91,61 @@ def trrust_human():
 def trrust_mouse():
 
     return trrust_interactions('mouse')
+
+def trrust_scraping(org):
+
+    print(f'Fetching records for {org}')
+    choices = {'human', 'mouse'}
+    
+    if org not in choices:
+        print('Not yet supported')
+        exit(0)
+
+    url = urls['trrust']['scraping_url'] % org
+
+    c = curl.Curl(
+        url,
+        silent=False,
+        large=True,
+        encoding="utf-8",
+        default_mode="r",
+    )
+
+    html_generator = c.result
+    records = list()
+
+    regex = r'[^<]*<td[^>]*>([^<]*)<\/td>'
+    matcher = re.compile(regex)
+
+    for line in html_generator:
+
+        attributes = matcher.findall(line)
+
+        if not attributes:
+            continue
+
+        attributes = [e if e != '-' else None for e in attributes]
+
+        try:
+            aliases = attributes[2].split(',')
+            aliases = [e.strip() for e in aliases]
+            aliases = tuple(aliases)
+        except AttributeError:
+            aliases = None
+        
+        record = {
+            'gene_symbol': attributes[0],
+            'entrez_id': attributes[1],
+            'aliases': aliases,
+            'full_name': attributes[3]
+        }
+
+        records.append(record)
+
+    return records
+
+def scrape_human():
+    return trrust_scraping('human')
+
+def scrape_mouse():
+    return trrust_scraping('mouse')
