@@ -137,7 +137,7 @@ def trrust_scraping(org):
             'gene_symbol': attributes[0],
             'entrez_id': attributes[1],
             'aliases': aliases,
-            'full_name': attributes[3]
+            'full_name': attributes[3] if len(attributes) > 3 else attributes[2]
         }
 
         records.append(record)
