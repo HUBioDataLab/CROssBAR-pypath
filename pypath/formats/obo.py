@@ -210,3 +210,44 @@ class Obo(session.Logger):
                 for term in self
                 if term.stanza == "Term"
             )
+
+
+    def list_term_attributes(self):
+        """
+        Lists all attributes of ontology terms.
+        """
+
+        return {term.attrs.keys() for term in self if term.stanza == "Term"}
+        
+    
+    def list_ontology_relationships(self):
+        """
+        Lists all relationships between ontology terms.
+        """
+
+        return {related.value 
+            for term in self 
+            if term.stanza == "Term" and "relationship" in term.attrs
+            for related in term.attrs["relationship"]}
+
+
+    def extract_relations(self,
+                  relation_types):
+        """
+        Retrieves relations between ontology terms.
+        Defines a dictionary: keys are the ontology term IDs and 
+        values are list of their related terms.
+        
+        :param list relation_types:
+            A list of relation types to be included in the dictionary.
+        """
+
+        term_list = [term for term in self if term.stanza == "Term"]
+        self.relations = {relation: {} for relation in relation_types}
+
+        for term in term_list:
+            if "relationship" in term.attrs:
+                for relation in relation_types:
+                    if relation not in self.relations:
+                        self.relations[relation] = {}
+                    self.relations[relation][term.id.value] = [related.modifiers for related in term.attrs["relationship"] if related.value == relation]
