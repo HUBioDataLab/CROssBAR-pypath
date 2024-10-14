@@ -7,6 +7,10 @@ from difflib import SequenceMatcher
 from collections import namedtuple
 
 
+from difflib import SequenceMatcher
+from collections import namedtuple
+
+
 baseline_experiement = namedtuple("BaselineExperiement", ["tpm_values", "experiement_design", "matching_factor"])
 
 class BaselineExperiementDataProcessor:
@@ -78,7 +82,7 @@ class BaselineExperiementDataProcessor:
             return False
         
         if self.skip_bad_data and f"Sample Characteristic[{self.matching_factor}]" not in df.columns:
-            raise ValueError(f"Sample Characteristic[{self.matching_factor}] column not found")
+            raise False
         elif f"Sample Characteristic[{self.matching_factor}]" not in df.columns:
             raise ValueError(f"Sample Characteristic[{self.matching_factor}] column not found")
 
