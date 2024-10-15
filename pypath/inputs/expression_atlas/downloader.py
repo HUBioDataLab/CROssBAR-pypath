@@ -75,11 +75,15 @@ class ExpressionAtlasExperimentDownloader:
                 zip_file.write(content)
             
             with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+                found = False
                 for file in zip_ref.namelist():
                     if file.endswith(".tsv"):
                         zip_ref.extract(file, self.cache_dir)
+                        found = True
+                        break
                 
-                raise FileNotFoundError("No TSV file found in the ZIP archive")
+                if not found:                
+                    raise FileNotFoundError(f"No TSV file found in the ZIP archive. Experiement: {experiment_name}")
         
     
     def _save_tsv_file(self, content: bytes, fname: str) -> None:
