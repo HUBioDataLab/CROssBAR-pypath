@@ -57,18 +57,10 @@ class ExpressionAtlasExperimentManager:
         df = df[~df['rawExperimentType'].str.contains("PROTEOMICS", case=False)]
         return df.groupby(['rawExperimentType', 'matching_factors'])['experimentAccession'].apply(list).reset_index()
         
-    def check_link(self, url: str) -> bool:
-        """Check if a URL is accessible."""
-        try:
-            response = requests.head(url, allow_redirects=True)
-            return response.status_code == 200
-        except requests.RequestException:
-            return False
-        
-    def validate_links(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Validate experiment links and return results DataFrame."""
+    def generate_links_table(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Generate a DataFrame with experiment links."""
         results = []
-        for _, row in tqdm(df.iterrows(), total=df.shape[0], desc="Checking links"):
+        for _, row in tqdm(df.iterrows(), total=df.shape[0], desc="Generating links"):
             experiment_type = row['rawExperimentType']
             matching_factors = row['matching_factors']
             for accession in row['experimentAccession']:
@@ -76,11 +68,10 @@ class ExpressionAtlasExperimentManager:
                 results.append({
                     'experimentAccession': accession,
                     'data_link': data_link,
-                    'is_data_link_accessible': self.check_link(data_link),
                     'design_link': design_link,
-                    'is_design_link_accessible': self.check_link(design_link),
                     'matching_factors': matching_factors
                 })
+                
         return pd.DataFrame(results)
     
     def separate_experiment_types(self, df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -91,61 +82,6 @@ class ExpressionAtlasExperimentManager:
     
     def __call__(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         df = self.filter_experiments(self.fetch_experiment_data())
-        validated_df = self.validate_links(df)
-        return self.separate_experiment_types(validated_df)
+        links_table = self.generate_links_table(df)
+        return self.separate_experiment_types(links_table)
 
-    
-
-
-class AsyncExpressionAtlasExperimentManager(ExpressionAtlasExperimentManager):
-    def __init__(self, 
-                 base_url: str, 
-                 experimental_factors: Union[list[str], None] = ["organism part", "cell type", "cell line", "compound", "infect", "disease"],
-                 ) -> None:
-        
-        super().__init__(base_url, experimental_factors)
-
-
-    
-    async def check_link(self, url: str) -> bool:
-        """Asynchronously check if a URL is accessible."""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.head(url, allow_redirects=True) as response:
-                    return response.status == 200
-        except aiohttp.ClientError:
-            return False
-        
-    
-    async def validate_links(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Validate experiment links asynchronously and return results DataFrame."""
-        tasks = []
-        results = []
-
-        async def validate(row):
-            experiment_type = row['rawExperimentType']
-            matching_factors = row['matching_factors']
-            for accession in row['experimentAccession']:
-                data_link, design_link = (link.format(accession) for link in self.EXPERIMENT_LINKS[experiment_type])
-                is_data_link_accessible = await self.check_link(data_link)
-                is_design_link_accessible = await self.check_link(design_link)
-                results.append({
-                    'experimentAccession': accession,
-                    'data_link': data_link,
-                    'is_data_link_accessible': is_data_link_accessible,
-                    'design_link': design_link,
-                    'is_design_link_accessible': is_design_link_accessible,
-                    'matching_factors': matching_factors
-                })
-
-        for _, row in df.iterrows():
-            tasks.append(validate(row))
-
-        # await asyncio.gather(*tasks)
-        await tqdm_asyncio.gather(*tasks, total=len(tasks), desc="Validating experiment links")
-        return pd.DataFrame(results)
-    
-    async def __call__(self) -> tuple[pd.DataFrame, pd.DataFrame]:
-        df = self.filter_experiments(self.fetch_experiment_data())
-        validated_df = await self.validate_links(df)
-        return self.separate_experiment_types(validated_df)
