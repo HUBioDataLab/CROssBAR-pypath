@@ -1,13 +1,8 @@
 import requests
-import aiohttp
-import asyncio
-
 import pandas as pd
-
-from tqdm import tqdm
-from tqdm.asyncio import tqdm_asyncio
 from typing import Union
 
+from tqdm import tqdm
 
 
 
