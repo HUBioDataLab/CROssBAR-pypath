@@ -96,6 +96,8 @@ class BaselineExperiementDataProcessor:
 
         # Drop rows if the "Sample Characteristic[matching_factor]" column contains " and "
         df = df[~df[f"Sample Characteristic[{self.matching_factor}]"].str.contains(" and ", na=False)]
+
+        df[f"Sample Characteristic[{self.matching_factor}]"] = df.apply(lambda row: row[f"Factor Value[{self.matching_factor}]"] if pd.notna(row[f"Factor Value[{self.matching_factor}]"]) and row[f"Sample Characteristic[{self.matching_factor}]"] != row[f"Factor Value[{self.matching_factor}]"] else row[f"Sample Characteristic[{self.matching_factor}]"], axis=1)
         
         if self.matching_factor == "cell line":
             df.loc[df[f"Sample Characteristic Ontology Term[{self.matching_factor}]"].isna(), f"Sample Characteristic Ontology Term[{self.matching_factor}]"] = df[f"Sample Characteristic[{self.matching_factor}]"]
