@@ -8,6 +8,9 @@ import zipfile
 import os
 
 import pypath.share.cache as cache
+import pypath.share.session as session
+
+
 
 from tqdm import tqdm
 
@@ -16,8 +19,10 @@ from tqdm import tqdm
 class ExpressionAtlasExperimentDownloader:
     def __init__(self) -> None:
         self.cache_dir = cache.get_cachedir()
-    
-    def download_files(self, urls: list[str], experiment_names: list[str]) -> bool:
+        self._logger = session.Logger(name='inputs.expression_atlas.downloader')
+        self._log = self._logger._log
+
+    def download_files(self, urls: list[str], experiment_names: list[str], cache: bool = True) -> bool:
         """
         Downloads files from the given URLs and saves them with the corresponding experiment names.
         Args:
@@ -39,13 +44,20 @@ class ExpressionAtlasExperimentDownloader:
             raise ValueError("URLs and experiment names must have the same length")
         
         for url, experiment_name in tqdm(zip(urls, experiment_names), total=len(urls), desc="Downloading files"):
+            response = requests.head(url)
+            d = response.headers.get('content-disposition')
+            fname = re.findall(r'filename="?([^"]+)"?', d)[0] if d else f"{experiment_name}.tsv"
+            fname = fname.strip('\"').strip()
+            
+            if cache:
+                self._handle_cache(fname)
+                if self.use_cache:
+                    continue
+            
             response = requests.get(url)
             if response.status_code == 200:
                 content_type = response.headers.get('Content-Type')
-                d = response.headers.get('content-disposition')
-                fname = re.findall(r'filename="?([^"]+)"?', d)[0] if d else f"{experiment_name}.tsv"
-                fname = fname.strip('\"').strip()
-
+                
                 # Handle ZIP file
                 if "zip" in content_type or fname.endswith(".zip"):
                     self._handle_zip_file(response.content, experiment_name)
@@ -55,9 +67,16 @@ class ExpressionAtlasExperimentDownloader:
                 else:
                     raise ValueError(f"Unsupported file type {fname}")
             else:
-                print(f"Download failed, HTTP Status Code: {response.status_code}")
-            
+                self._log(f"Download failed for {experiment_name}, HTTP Status Code: {response.status_code}")
+        
         return True
+
+    def _handle_cache(self, fname: str) -> None:
+        """Handle caching for a given filename."""
+        self.cache_file_name = os.path.join(self.cache_dir, fname)
+        self.use_cache = os.path.exists(self.cache_file_name) and os.stat(self.cache_file_name).st_size > 0
+        if self.use_cache:
+            self._log('Cache file found, no need for download.')
 
     def _handle_zip_file(self, content: bytes, experiment_name: str) -> None:
         """
@@ -129,7 +148,7 @@ class AsyncExpressionAtlasExperimentDownloader(ExpressionAtlasExperimentDownload
         
         return True
 
-    async def _download_file(self, session: aiohttp.ClientSession, url: str, experiment_name: str) -> None:
+    async def _download_file(self, session: aiohttp.ClientSession, url: str, experiment_name: str, cache: bool = True) -> None:
         """
         Asynchronously downloads a file from the given URL and processes it based on its content type.
 
@@ -146,12 +165,20 @@ class AsyncExpressionAtlasExperimentDownloader(ExpressionAtlasExperimentDownload
             - If the file is a TSV file, it will be saved using the `_save_tsv_file` method.
             - If the HTTP status code is not 200, it will print an error message.
         """
+
+        async with session.head(url) as response:
+            d = response.headers.get('content-disposition')
+            fname = re.findall(r'filename="?([^"]+)"?', d)[0] if d else f"{experiment_name}.tsv"
+            fname = fname.strip('\"').strip()
+        
+        if cache:
+            self._handle_cache(fname)
+            if self.use_cache:
+                return
+
         async with session.get(url) as response:
             if response.status == 200:
                 content_type = response.headers.get('Content-Type')
-                d = response.headers.get('content-disposition')
-                fname = re.findall(r'filename="?([^"]+)"?', d)[0] if d else f"{experiment_name}.tsv"
-                fname = fname.strip('\"').strip()
 
                 # Handle ZIP file
                 if "zip" in content_type or fname.endswith(".zip"):
@@ -164,5 +191,4 @@ class AsyncExpressionAtlasExperimentDownloader(ExpressionAtlasExperimentDownload
                 else:
                     raise ValueError(f"Unsupported file type {fname}")
             else:
-                print(f"Download failed, HTTP Status Code: {response.status}")
-              
+                self._log(f"Download failed, HTTP Status Code: {response.status}")

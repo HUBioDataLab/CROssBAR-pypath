@@ -10,6 +10,11 @@ from collections import namedtuple
 from difflib import SequenceMatcher
 from collections import namedtuple
 
+import pypath.share.session as session
+
+_logger = session.Logger(name = 'inputs.expression_atlas.processor')
+_log = _logger._log
+
 
 baseline_experiement = namedtuple("BaselineExperiement", ["tpm_values", "experiement_design", "matching_factor"])
 
@@ -65,7 +70,7 @@ class BaselineExperiementDataProcessor:
             return False
         
         if any([True if " and " in col else False for col in df.columns]):
-            print(f"Columns contain ' and ' in their names. Columns: {df.columns.to_list()}. File: {self.tpm_file_path}")
+            _log(f"Columns contain ' and ' in their names. Columns: {df.columns.to_list()}. File: {self.tpm_file_path}")
             df.drop(columns=[col for col in df.columns if " and " in col], inplace=True)
 
         assert all(df.columns[:2] == ["Gene ID", "Gene Name"]), "Gene ID and Gene Name columns not found"
@@ -231,7 +236,7 @@ class BaselineExperiementDataProcessor:
                     best_match = second_el
             
             if best_score <= 0.55:
-                print(f"No best match found for {first_el}")
+                _log(f"No best match found for {first_el}")
             else:
                 matches[first_el] = best_match
 

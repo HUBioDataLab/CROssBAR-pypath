@@ -4,14 +4,16 @@ from typing import Union
 
 from tqdm import tqdm
 
-
-
+import pypath.share.session as session
 
 class ExpressionAtlasExperimentManager:
     def __init__(self, 
                  base_url: str, 
                  experimental_factors: Union[list[str], None] = ["organism part", "cell type", "cell line", "compound", "infect", "disease"],
                  ) -> None:
+        
+        self._logger = session.Logger(name='inputs.expression_atlas.experiement_manager')
+        self._log = self._logger._log
         
         self.base_url = base_url
         
@@ -31,8 +33,10 @@ class ExpressionAtlasExperimentManager:
     
     def fetch_experiment_data(self) -> pd.DataFrame:
         """Fetch experiment data from the API."""
+        self._log(f"Fetching experiment data from the API: {self.base_url}")
         response = requests.get(self.base_url)
         response.raise_for_status()
+        self._log(f"Experiment data fetched successfully.")
         return pd.DataFrame(response.json()["experiments"])
     
     def get_matching_factors(self, factors) -> Union[str, None]:
