@@ -23,7 +23,7 @@ class BaselineExperiementDataProcessor:
                  tpm_file_path: str,
                  experiment_design_file_path: str,
                  matching_factor: str,
-                 skip_bad_data: bool = True,
+                 skip_bad_data: bool = False,
                  baseline_experiement_namedtuple: namedtuple = baseline_experiement) -> None:
         
         self.tpm_file_path = tpm_file_path
@@ -102,11 +102,16 @@ class BaselineExperiementDataProcessor:
         if self.matching_factor == "cell line":
             df.loc[df[f"Sample Characteristic Ontology Term[{self.matching_factor}]"].isna(), f"Sample Characteristic Ontology Term[{self.matching_factor}]"] = df[f"Sample Characteristic[{self.matching_factor}]"]
             df.loc[df[f"Factor Value Ontology Term[{self.matching_factor}]"].isna(), f"Factor Value Ontology Term[{self.matching_factor}]"] = df[f"Factor Value[{self.matching_factor}]"]
-
+        
         if self.skip_bad_data and not {f"Sample Characteristic Ontology Term[{self.matching_factor}]", f"Factor Value Ontology Term[{self.matching_factor}]"}.issubset(set(df.columns)):
             return False
         elif not {f"Sample Characteristic Ontology Term[{self.matching_factor}]", f"Factor Value Ontology Term[{self.matching_factor}]"}.issubset(set(df.columns)):
             raise ValueError(f"Sample Characteristic Ontology Term[{self.matching_factor}] and Factor Value Ontology Term[{self.matching_factor}] columns not found")
+        
+        if self.skip_bad_data and df[[f"Sample Characteristic Ontology Term[{self.matching_factor}]", f"Factor Value Ontology Term[{self.matching_factor}]"]].isna().all().all():
+            return False
+        elif df[[f"Sample Characteristic Ontology Term[{self.matching_factor}]", f"Factor Value Ontology Term[{self.matching_factor}]"]].isna().all().all():
+            raise ValueError(f"Sample Characteristic Ontology Term[{self.matching_factor}] and Factor Value Ontology Term[{self.matching_factor}] columns are full of NaN")
         
         if df[f"Sample Characteristic Ontology Term[{self.matching_factor}]"].isna().all():
             df.loc[df[f"Sample Characteristic Ontology Term[{self.matching_factor}]"].isna(), f"Sample Characteristic Ontology Term[{self.matching_factor}]"] = df[f"Sample Characteristic[{self.matching_factor}]"]
@@ -313,7 +318,6 @@ class DifferentialExperiementDataProcessor:
         if "Design Element" in df.columns:
             df.drop(columns="Design Element", inplace=True)
 
-        # GENE NAME'IN ATILDIĞI DURUMLAR OLABİLİR. ONA GÖRE HAREKET ET
         return df.reset_index(drop=True)
     
     def read_experiement_design_data(self) -> Union[pd.DataFrame, bool]:
@@ -340,11 +344,6 @@ class DifferentialExperiementDataProcessor:
 
         if df[f"Factor Value Ontology Term[{self.matching_factor}]"].isna().all():
             df.loc[df[f"Factor Value Ontology Term[{self.matching_factor}]"].isna(), f"Factor Value Ontology Term[{self.matching_factor}]"] = df[f"Factor Value[{self.matching_factor}]"]
-
-        # if not pd.Series.equals(df[f"Sample Characteristic Ontology Term[{self.matching_factor}]"], df[f"Factor Value Ontology Term[{self.matching_factor}]"]):
-        #     df = df[df[f"Sample Characteristic Ontology Term[{self.matching_factor}]"] == df[f"Factor Value Ontology Term[{self.matching_factor}]"]]
-
-        #     assert df.empty == False, f"Sample Characteristic Ontology Term[{self.matching_factor}] and Factor Value Ontology Term[{self.matching_factor}] columns do not match"
         
         ontology_terms_to_extract = ["organism part", "organism", "cell type", "cell line", "compound", "infect", "disease"]
         selected_columns = []
@@ -533,3 +532,5 @@ class DifferentialExperiementDataProcessor:
                 matches[first_el] = best_match
 
         return matches
+
+        
