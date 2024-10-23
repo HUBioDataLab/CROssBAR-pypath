@@ -23,7 +23,7 @@ class BaselineExperiementDataProcessor:
                  tpm_file_path: str,
                  experiment_design_file_path: str,
                  matching_factor: str,
-                 skip_bad_data: bool = False,
+                 skip_bad_data: bool = True,
                  baseline_experiement_namedtuple: namedtuple = baseline_experiement) -> None:
         
         self.tpm_file_path = tpm_file_path
