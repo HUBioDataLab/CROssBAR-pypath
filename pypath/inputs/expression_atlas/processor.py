@@ -119,7 +119,10 @@ class BaselineExperiementDataProcessor:
         if not pd.Series.equals(df[f"Sample Characteristic Ontology Term[{self.matching_factor}]"], df[f"Factor Value Ontology Term[{self.matching_factor}]"]):
             df = df[df[f"Sample Characteristic Ontology Term[{self.matching_factor}]"] == df[f"Factor Value Ontology Term[{self.matching_factor}]"]]
 
-            assert df.empty == False, f"Sample Characteristic Ontology Term[{self.matching_factor}] and Factor Value Ontology Term[{self.matching_factor}] columns do not match"
+            if self.skip_bad_data and df.empty == False:
+                return False
+            elif df.empty == False:
+                raise ValueError(f"Sample Characteristic Ontology Term[{self.matching_factor}] and Factor Value Ontology Term[{self.matching_factor}] columns do not match")
         
         ontology_terms_to_extract = ["organism part", "organism", "cell type", "cell line", "compound", "infect", "disease"]
         selected_columns = []
