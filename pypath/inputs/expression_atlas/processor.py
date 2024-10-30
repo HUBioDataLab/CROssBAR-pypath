@@ -137,7 +137,9 @@ class BaselineExperiementDataProcessor:
         new_df = df[selected_columns]
         new_df.columns = new_columns_names
 
-        assert new_df.empty == False, "No matching columns found"
+        if new_df.empty:
+            print("No matching columns found")
+            return False
 
         for col in new_df.columns:
             new_df.loc[:, col] = new_df[col].apply(lambda x: x.rsplit('/', 1)[-1].replace('_', ':') if pd.notna(x) else x)
