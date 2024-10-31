@@ -98,7 +98,7 @@ class BaselineExperiementDataProcessor:
         # Drop rows if the "Sample Characteristic[matching_factor]" column contains " and "
         df = df[~df[f"Sample Characteristic[{self.matching_factor}]"].str.contains(" and ", na=False)]
 
-        df[f"Sample Characteristic[{self.matching_factor}]"] = np.where((pd.notna(df[f"Factor Value[{self.matching_factor}]"])) & (pd.notna(df[f"Sample Characteristic[{self.matching_factor}]"])) & (df[f"Sample Characteristic[{self.matching_factor}]"] != df[f"Factor Value[{self.matching_factor}]"]), df[f"Factor Value[{self.matching_factor}]"], df[f"Sample Characteristic[{self.matching_factor}]"])
+        df[f"Sample Characteristic[{self.matching_factor}]"] = np.where((pd.notna(df[f"Factor Value[{self.matching_factor}]"])) & (df[f"Sample Characteristic[{self.matching_factor}]"] != df[f"Factor Value[{self.matching_factor}]"]), df[f"Factor Value[{self.matching_factor}]"], df[f"Sample Characteristic[{self.matching_factor}]"])
         
         if self.matching_factor == "cell line":
             df.loc[df[f"Sample Characteristic Ontology Term[{self.matching_factor}]"].isna(), f"Sample Characteristic Ontology Term[{self.matching_factor}]"] = df[f"Sample Characteristic[{self.matching_factor}]"]
