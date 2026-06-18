@@ -23,7 +23,7 @@ from typing import Generator, NamedTuple
 
 import collections
 
-import pandas as pd
+# In accordance with the guidelines, the pandas dependency has been removed.
 
 import pypath.share.curl as curl
 import pypath.resources.urls as urls
@@ -64,73 +64,147 @@ class AdrecsTerm(NamedTuple):
 class AdrecsDrug(NamedTuple):
     badd: str
     drug: str
-    synonyms: str
+    synonyms: tuple[str]
     drugbank: str
     pubchem_cid: str
     mesh: str
     kegg: str
     tdd: str
 
+# MAIN INTEGRATION FUNCTIONS
 
-def adrecs_drug_identifiers(
-        return_df: bool = False,
-    ) -> list[tuple] | pd.DataFrame:
+def adrecs_drug_identifiers() -> dict[str, set[AdrecsDrug]]:
     """
     Drug identifiers from the AdReCS database.
 
-    IUPAC name, synonyms, DrugBank, MeSH, KEGG and TDD IDs of drugs.
+    Extracts IUPAC name, synonyms, DrugBank, MeSH, KEGG, and TDD IDs of drugs.
     http://www.bio-add.org/ADReCS/index.jsp
 
-    Args:
-        return_df:
-            Return a pandas data frame.
-
     Returns:
-        List of tuples or data frame of drug identifiers.
+       A dictionary mapping primary BADD IDs to a set of AdrecsDrug namedtuples.
     """
 
-    return _adrecs_base(
-        url_key = 'drug_information',
+    raw_data = _adrecs_base(
+        url_key = 'drug_information', 
         record = AdrecsDrug,
         cell_range = 'A1:H2527',
         synonym_idx = [2],
-        return_df = return_df,
     )
 
+    result = collections.defaultdict(set) 
+    for drug in raw_data:
+        if drug.badd:
+            result[drug.badd].add(drug)
+            
+    return dict(result)
 
-def adrecs_adr_ontology(return_df: bool = False) -> list[AdrecsTerm] | pd.DataFrame:
+def adrecs_adr_ontology() -> dict[str, set[AdrecsTerm]]:
     """
     Adverse drug reaction (ADR) ontology from the AdReCS database.
 
-    Args:
-        return_df:
-            Return a pandas data frame.
+    Extracts ADR term classification, name, synonyms, and MedDRA identifiers.
 
     Returns:
-        List of tuples or data frame of adverse drug reaction terms.
+        A dictionary mapping ADR BADD IDs to a set of AdrecsTerm namedtuples.
     """
 
-    return _adrecs_base(
-        url_key = 'terminology',
+    raw_data = _adrecs_base(
+        url_key = 'terminology', 
         record = AdrecsTerm,
         cell_range = 'A1:E13856',
         synonym_idx = [3],
-        return_df = return_df,
     )
 
+    result = collections.defaultdict(set)
+    for term in raw_data:
+        if term.badd:
+            result[term.badd].add(term)
+            
+    return dict(result)
+
+def adrecs_drug_adr() -> dict[str, set[AdrecsDrugAdr]]:
+    """
+    Drug-ADR pairs from the AdReCS database.
+
+    Parses the mapping between drugs and their respective adverse reactions.
+
+    Returns:
+        A dictionary mapping drug BADD IDs to a set of AdrecsDrugAdr namedtuples.
+    """
+
+    url = urls.urls['adrecs']['adrecs_drugs']
+    c = curl.Curl(url, large = True, silent = False)
+    _ = next(c.result) 
+
+    result = collections.defaultdict(set)
+    
+    for line in c.result:
+        fields = line.strip().split('\t')
+
+
+        if len(fields) < 4:
+            continue
+            
+        record = AdrecsDrugAdr(*fields)
+        result[record.drug_badd].add(record)
+        
+    return dict(result)
+
+def adrecs_hierarchy() -> dict[str, set[AdrecsChildParent]]:
+    """
+    Child-parent relationships between AdReCS ontology terms.
+
+    Reconstructs the hierarchical tree structure of adverse reactions.
+
+    Returns:
+         A dictionary mapping child BADD IDs to a set of AdrecsChildParent namedtuples.
+    """
+
+    url = urls.urls['adrecs']['terminology']
+    path = curl.Curl(url, silent = True, large = True)
+    contents = inputs_common.read_xls(path.outfile, cell_range = 'A1:E13856')
+    
+    adr_ontology = []
+    for line in contents[1:]:
+        line = [_notavail(x) for x in line]
+        line[3] = _synonyms(line[3])
+        adr_ontology.append(AdrecsTerm(*line))
+
+    child_adrs = {
+        record.adrecs_class: record.badd
+        for record in adr_ontology
+    }
+
+    result = collections.defaultdict(set)
+
+    for field in adr_ontology:
+        if '.' not in field.adrecs_class:
+            continue
+
+        parent_adrecs = field.adrecs_class.rsplit('.', 1)[0]
+        
+        child_obj = AdrecsAdr(adr_class = field.adrecs_class, badd = field.badd)
+        parent_obj = AdrecsAdr(adr_class = parent_adrecs, badd = child_adrs.get(parent_adrecs))
+        
+        relation = AdrecsChildParent(child = child_obj, parent = parent_obj)
+        
+        result[field.badd].add(relation)
+
+    return dict(result)
+
+#HELPER FUNCTIONS
 
 def _adrecs_base(
         url_key: str,
-        record: str | type,
+        record: type,
         cell_range: str,
-        synonym_idx: list[int],
-        fields: tuple[str] | None = None,
-        return_df: bool = False,
-    ) -> list[tuple] | pd.DataFrame:
+        synonym_idx: list[int],) -> list[tuple]:
 
-    if isinstance(record, str):
-
-        record = collections.namedtuple(f'Adrecs{record_name}', fields)
+    """
+    Helper function which downloads and parses the excel files. 
+    
+    Critical Fixation: NameError cause 'record_name' block completely removed.
+    """
 
     url = urls.urls['adrecs'][url_key]
     path = curl.Curl(url, silent = False, large = True)
@@ -138,85 +212,11 @@ def _adrecs_base(
     result = []
 
     for line in contents[1:]:
-
         line = [_notavail(x) for x in line]
 
         for isyn in synonym_idx:
-
             line[isyn] = _synonyms(line[isyn])
 
         result.append(record(*line))
-
-    return pd.DataFrame(result) if return_df else result
-
-
-def adrecs_drug_adr(
-        return_df: bool = False,
-    ) -> Generator[AdrecsDrugAdr] | pd.DataFrame:
-    """
-    Drug-ADR pairs from the AdReCS database.
-
-    Args:
-        return_df:
-            Return a pandas data frame.
-
-    Returns:
-        List of tuples or data frame of drug-ADR pairs.
-    """
-
-    result = _adrecs_drug_adr()
-
-    return pd.DataFrame(result) if return_df else result
-
-
-def _adrecs_drug_adr():
-
-    url = urls.urls['adrecs']['adrecs_drugs']
-    c = curl.Curl(url, large = True, silent = False)
-    _ = next(c.result)
-
-    for line in c.result:
-
-        yield AdrecsDrugAdr(*line.strip().split('\t'))
-
-
-def adrecs_hierarchy() -> set[AdrecsChildParent]:
-    """
-    Child-parent relationships between AdReCS ontology terms.
-
-    Return:
-        Set of tuples representing child-parent relationship. Both the child
-        and parent terms present with their numeric class and BADD identifiers.
-    """
-
-    adr_ontology = adrecs_adr_ontology()
-
-    child_adrs = {
-        record.adrecs_class: record.badd
-        for record in adr_ontology
-    }
-
-    result = set()
-
-    for field in adr_ontology:
-
-        if '.' not in field.adrecs_class:
-
-            continue
-
-        parent_adrecs = field.adrecs_class.rsplit('.', 1)[0]
-
-        result.add(
-            AdrecsChildParent(
-                child = AdrecsAdr(
-                    adr_class = field.adrecs_class,
-                    badd = field.badd,
-                ),
-                parent = AdrecsAdr(
-                    adr_class = parent_adrecs,
-                    badd = child_adrs.get(parent_adrecs),
-                ),
-            )
-        )
 
     return result
