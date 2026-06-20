@@ -1672,7 +1672,7 @@ urls = {
             'standardization and hierarchical classification of ADR terms.'
         ),
         'drug_information':
-            'http://bioinf.xmu.edu.cn/ADReCS/download/Drug_information.xlsx',
+            'http://www.bio-add.org/ADReCS/download/Drug_information.xlsx',
         'terminology':
             'http://www.bio-add.org/ADReCS/download/ADR_ontology.xlsx',
         'adrecs_drugs':
