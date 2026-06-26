@@ -26,6 +26,9 @@ import collections
 import pypath.resources.urls as urls
 import pypath.share.curl as curl
 
+import requests
+import gzip
+
 
 def stitch_actions_interactions(threshold: Number = None) -> List[tuple]:
 
@@ -42,13 +45,17 @@ def stitch_actions_interactions(threshold: Number = None) -> List[tuple]:
 
     url = urls.urls['stitch']['actions']
 
-    c = curl.Curl(url, silent = False, large = True, slow = True)
+    r = requests.get(url, stream=True)
 
-    _ = next(c.result)
+    stream = gzip.open(
+        r.raw,
+        mode="rt",
+        encoding="utf-8",
+    )
 
+    _ = next(stream)
     sep = re.compile(r'[sm\.]')
-
-    for l in c.result:
+    for l in stream:
 
         if hasattr(l, 'decode'):
 
@@ -135,13 +142,19 @@ def stitch_links_interactions(
             if s.mechanism == 'binding'
         )
 
-    url = urls.urls['stitch']['links'] % ncbi_tax_id
-    c = curl.Curl(url, silent = False, large = True)
-    _ = next(c.result)
+    url = urls.urls['stitch']['links']
+    r = requests.get(url, stream=True)
 
+    stream = gzip.open(
+        r.raw,
+        mode="rt",
+        encoding="utf-8",
+    )
+    
+
+    _ = next(stream)
     sep = re.compile(r'[sm\.]')
-
-    for l in c.result:
+    for l in stream:
 
         if hasattr(l, 'decode'):
 
