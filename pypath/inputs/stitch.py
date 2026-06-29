@@ -24,10 +24,14 @@ import re
 import collections
 
 import pypath.resources.urls as urls
-import pypath.share.curl as curl
+
 
 import requests
 import gzip
+
+from pypath.share import session
+
+_log = session.Logger(name='stitch_input')._log
 
 
 def stitch_actions_interactions(threshold: Number = None) -> List[tuple]:
@@ -45,7 +49,34 @@ def stitch_actions_interactions(threshold: Number = None) -> List[tuple]:
 
     url = urls.urls['stitch']['actions']
 
-    r = requests.get(url, stream=True)
+    _log(f'Downloading STITCH actions from {url}')
+
+    try:
+        r = requests.get(
+            url,
+            stream=True,
+            timeout=300,
+        )
+
+        if r.status_code != 200:
+            _log(
+                f'Failed to download STITCH actions '
+                f'from {url}. HTTP {r.status_code}.'
+            )
+            r.raise_for_status()
+
+        _log(
+            f'Successfully connected to STITCH actions endpoint '
+            f'({r.status_code}).'
+        )
+
+
+    except requests.RequestException as e:
+        _log(
+            f'Error downloading STITCH actions '
+            f'from {url}: {e}'
+        )
+        raise
 
     stream = gzip.open(
         r.raw,
@@ -143,7 +174,35 @@ def stitch_links_interactions(
         )
 
     url = urls.urls['stitch']['links']
-    r = requests.get(url, stream=True)
+
+    _log(f'Downloading STITCH links from {url}')
+
+    try:
+        r = requests.get(
+            url,
+            stream=True,
+            timeout=300,
+        )
+
+        if r.status_code != 200:
+            _log(
+                f'Failed to download STITCH links '
+                f'from {url}. HTTP {r.status_code}.'
+            )
+            r.raise_for_status()
+
+        _log(
+            f'Successfully connected to STITCH actions endpoint '
+            f'({r.status_code}).'
+        )
+
+
+    except requests.RequestException as e:
+        _log(
+            f'Error downloading STITCH links '
+            f'from {url}: {e}'
+        )
+        raise
 
     stream = gzip.open(
         r.raw,
