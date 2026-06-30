@@ -94,6 +94,14 @@ except Exception as e:
     _logger._log_traceback()
     UNICHEM_NAME_TYPES = ()
 
+try:
+    RAMP_NAME_TYPES = ramp_input.ramp_id_types_2('compound')
+except Exception as e:
+    exc = sys.exc_info()
+    _log('Failed to retrieve RaMP ID types:')
+    _logger._log_traceback()
+    RAMP_NAME_TYPES = set()
+
 RESOURCES_EXPLICIT = ('uniprot', 'basic', 'mirbase', 'ipi')
 
 RESOURCES_IMPLICIT = (
@@ -124,10 +132,7 @@ RESOURCES_IMPLICIT = (
     ),
     (
         dict(
-            **{
-                it: it
-                for it in ramp_input.ramp_id_types_2('compound')
-            },
+            **{it: it for it in RAMP_NAME_TYPES},
             **input_formats.RAMP_MAPPING,
         ),
         'ramp',
