@@ -28,6 +28,7 @@ import pypath.resources.urls as urls
 import pypath.share.curl as curl
 import pypath.share.common as common
 import pypath.share.session as session
+import pypath.share.settings as settings
 
 _logger = session.Logger(name = 'unichem_input')
 _log = _logger._log
@@ -58,7 +59,7 @@ def unichem_info():
 
     url = urls.urls['unichem']['sources']
 
-    response = requests.get(url, timeout=30)
+    response = requests.get(url, timeout=settings.get('curl_timeout'))
     response.raise_for_status()
     
 
