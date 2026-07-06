@@ -59,20 +59,20 @@ def dgidb_interactions() -> list[tuple]:
 
     for interaction in interactions:
 
-        interaction = {k: v or None for k, v in interaction.items()}
+            interaction = {k: v or None for k, v in interaction.items()}
 
-        dgidb_interaction = DgidbInteraction(
-            genesymbol = interaction['gene_name'],
-            entrez = interaction['entrez_id'],
-            resource = interaction['interaction_claim_source'],
-            type = interaction['interaction_types'],
-            drug_name = interaction['drug_claim_primary_name'],
-            drug_chembl = interaction['drug_concept_id'],
-            score = interaction['interaction_group_score'],
-            pmid = interaction['PMIDs'],
-        )
+            dgidb_interaction = DgidbInteraction(
+                genesymbol = interaction.get('gene_name'),
+                entrez = interaction.get('gene_concept_id'), 
+                resource = interaction.get('interaction_source_db_name'), 
+                type = interaction.get('interaction_type'), 
+                drug_name = interaction.get('drug_name'), 
+                drug_chembl = interaction.get('drug_concept_id'),
+                score = interaction.get('interaction_score'), 
+                pmid = interaction.get('PMIDs'), 
+            )
 
-        result.add(dgidb_interaction)
+            result.add(dgidb_interaction)
 
     return list(result)
 
@@ -97,7 +97,7 @@ def dgidb_annotations():
     for rec in data:
 
         uniprots = mapping.map_name(
-            rec['entrez_gene_symbol'],
+            rec['name'], 
             'genesymbol',
             'uniprot',
         )
@@ -105,7 +105,7 @@ def dgidb_annotations():
         for uniprot in uniprots:
             result[uniprot].add(
                 DgidbAnnotation(
-                    category = rec['category']
+                    category = rec['name-2'] 
                 )
             )
 

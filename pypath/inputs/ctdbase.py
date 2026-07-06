@@ -57,6 +57,8 @@ def _ctdbase_download(_type: str) -> list[tuple]:
         default_mode="r",
         compressed=True,
         compr="gz",
+        timeout=100000000,
+        retries=5,
     )
 
     entries = list()
@@ -94,6 +96,9 @@ def _ctdbase_download(_type: str) -> list[tuple]:
                 v = [v.split("^")]
 
             data[i] = v
+
+        if len(data) == len(fieldnames) + 1 and data[-1].strip() == "":
+            data.pop()
 
         if len(data) != len(fieldnames):
             continue # some lines have missing fields and cannot be parsed

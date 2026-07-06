@@ -60,7 +60,11 @@ def unichem_info():
     url = urls.urls['unichem']['sources']
 
     response = requests.get(url, timeout=settings.get('curl_timeout'))
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except Exception as e:
+        print(f"\n[UYARI] Unichem sunucusuna ulaşılamadı. Detay: {e}")
+        return []
     
 
     data = response.json()

@@ -880,6 +880,8 @@ class Curl(FileOpener):
                 if slow else
             settings.get('curl_timeout')
         )
+        if timeout is not None:
+            self.timeout = timeout
         self.connect_timeout = settings.get('curl_connect_timeout')
         self.ignore_content_length = ignore_content_length
         self.override_post = override_post
