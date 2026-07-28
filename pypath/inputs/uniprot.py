@@ -66,32 +66,40 @@ def _all_uniprots(organism = 9606, swissprot = None):
     if organism == '*':
         get['query'] = rev.strip(' AND ')
 
-    for attempt in range(3):
+    max_attempts = 3
+
+    for attempt in range(1, max_attempts + 1):
 
         c = curl.Curl(
             url,
             get = get,
             silent = False,
             slow = True,
-            cache = attempt == 0,
+            cache = attempt == 1,
         )
-        data = c.result
+        data = c.result or ''
 
         result = {l.strip() for l in data.split('\n')[1:] if l.strip()}
 
-        if result and all(valid_uniprot(l) for l in result):
+        if data and all(valid_uniprot(l) for l in result):
+
             return result
 
         _logger._log(
             'UniProt `_all_uniprots` invalid response on attempt '
-            '%d/3: `%s`' % (attempt + 1, (data or '')[:200])
+            '%d/%d: `%s`' % (attempt, max_attempts, data[:200])
         )
 
-    raise RuntimeError(
-        'Could not retrieve a valid UniProt accession list from `%s` '
-        'after 3 attempts.' % url
-    )
+        if attempt < max_attempts:
+            time.sleep(2 ** (attempt - 1))
 
+    msg = (
+        'Could not retrieve a valid UniProt accession list from `%s` '
+        'after %d attempts.' % (url, max_attempts)
+    )
+    _logger._log(msg)
+
+    raise RuntimeError(msg)
 
 def _swissprot_param(swissprot):
 
