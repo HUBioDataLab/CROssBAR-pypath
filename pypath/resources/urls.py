@@ -152,7 +152,7 @@ urls = {
     'ols': {
         'label': 'WSDL interface for the Ontology Lookup Service',
         'url_wsdl': 'http://www.ebi.ac.uk/ontology-lookup/OntologyQuery.wsdl',
-        'url': 'https://www.ebi.ac.uk/ols/api/ontologies',
+        'url': 'https://www.ebi.ac.uk/ols4/api/ontologies',
     },
     'comppi': {
         'label': 'Compartmentalized PPI database',
