@@ -21,6 +21,7 @@ import os
 import sys
 import textwrap
 import collections
+import warnings
 
 import bs4
 
@@ -63,7 +64,7 @@ def unichem_info():
     try:
         response.raise_for_status()
     except Exception as e:
-        print(f"\n[UYARI] Unichem sunucusuna ulaşılamadı. Detay: {e}")
+        warnings.warn(f"Unichem server is unreachable. Details: {e}", UserWarning)
         return []
     
 

@@ -43,11 +43,11 @@ def dgidb_interactions() -> list[tuple]:
         'DgidbInteraction',
         [
             'genesymbol',
-            'entrez',
+            'gene_id',
             'resource',
             'type',
             'drug_name',
-            'drug_chembl',
+            'drug_id',
             'score',
             'pmid'
         ],
@@ -63,11 +63,11 @@ def dgidb_interactions() -> list[tuple]:
 
             dgidb_interaction = DgidbInteraction(
                 genesymbol = interaction.get('gene_name'),
-                entrez = interaction.get('gene_concept_id'), 
+                gene_id = interaction.get('gene_concept_id'), 
                 resource = interaction.get('interaction_source_db_name'), 
                 type = interaction.get('interaction_type'), 
                 drug_name = interaction.get('drug_name'), 
-                drug_chembl = interaction.get('drug_concept_id'),
+                drug_id = interaction.get('drug_concept_id'),
                 score = interaction.get('interaction_score'), 
                 pmid = interaction.get('PMIDs'), 
             )
