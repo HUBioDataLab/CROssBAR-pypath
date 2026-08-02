@@ -56,15 +56,12 @@ urls = {
         'details': 'https://rest.uniprot.org/idmapping/details/%s',
         'fields': 'https://rest.uniprot.org/configure/idmapping/fields',
     },
-    'corum': {
-        'label':
-        'CORUM is a database of protein complexes, downloadable in csv format',
-        'url_old':
-        'http://mips.helmholtz-muenchen.de/genre/proj/corum/allComplexes.csv',
-        'url': 'http://mips.helmholtz-muenchen.de/corum/download/'
-            'allComplexes.txt.zip',
-        'url_rescued':
-            'https://rescued.omnipathdb.org/CORUM_allComplexes.txt.zip',
+    'corum': { 
+         'label':
+        'CORUM is a database of protein complexes, downloadable in '
+        'txt, json and xml formats',
+        'url':
+        'https://mips.helmholtz-muenchen.de/fastapi-corum/public/file/download_current_file?file_id=complete&file_format=txt',
     },
     'pfam_pdb': {
         'label': 'PDB-Pfam mapping and names of Pfam domains',
