@@ -26,6 +26,7 @@ import itertools
 import functools
 import pyreadr
 
+import pandas as pd
 import pypath.share.curl as curl
 import pypath.resources.urls as urls
 import pypath.share.session as session
@@ -158,8 +159,7 @@ def get_dorothea_old(
         for ll in (
             l.strip('\n\r').split('\t') for l in c.result
         ) if (
-            ll[3] in levels and
-            not only_curated or ll[4] == 'TRUE'
+            ll[3] in levels and (not only_curated or ll[4] == 'TRUE')
         )
     )
 
@@ -297,6 +297,13 @@ def dorothea_rda_raw(organism = 9606):
     url = urls.urls['dorothea_git']['rda'] % fname
 
     c = curl.Curl(url, silent = False, large = True)
+
+    if c.fileobj is None:
+        _logger._log(
+            'DoRothEA: failed to download data from `%s`.' % url
+        )
+        return None
+
     rdata_path = c.fileobj.name
     c.fileobj.close()
 
@@ -331,7 +338,7 @@ def dorothea_full_raw(organism = 9606):
 
     _organism = taxonomy.ensure_ncbi_tax_id(organism)
 
-    if _organism != 9606 and organism:
+    if organism is not None and _organism != 9606:
 
         msg = (
             'DoRothEA: invalid organism: `%s`. The full database is '
@@ -351,7 +358,6 @@ def dorothea_interactions(
         organism = 9606,
         levels = {'A', 'B', 'C', 'D'},
         only_curated = False,
-        confidence_pairwise = True,
     ):
     """
     Retrieves TF-target interactions from TF regulons.
@@ -383,6 +389,13 @@ def dorothea_interactions(
     )
 
     df = dorothea_full_raw(organism = organism)
+
+    if df is None:
+        _logger._log(
+            'DoRothEA: no data available, returning empty result.'
+        )
+        return
+
     df = df[df.confidence.isin(levels)]
 
     if only_curated:
@@ -400,7 +413,7 @@ def dorothea_interactions(
                         (
                             rec.tf,
                             rec.target,
-                            int(rec.mor),
+                            int(rec.mor) if not pd.isna(rec.mor) else None,
                             rec.confidence,
                         ),
 
@@ -435,7 +448,7 @@ def dorothea_interactions(
                         ),
                         # PubMed and KEGG pw
                         (
-                            rec.pubmed_id if rec.pubmed_id.isdigit() else '',
+                            rec.pubmed_id if str(rec.pubmed_id).isdigit() else '',
                             '',
                         ),
                     )
