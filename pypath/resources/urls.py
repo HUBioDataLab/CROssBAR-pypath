@@ -472,7 +472,7 @@ urls = {
         'label': 'Secondary UniProt ACs',
         'url_old': 'ftp://ftp.uniprot.org/pub/databases/uniprot/'
             'current_release/knowledgebase/complete/docs/sec_ac.txt',
-        'url': 'ftp://ftp.expasy.org/databases/uniprot/current_release/'
+        'url': 'https://ftp.uniprot.org/pub/databases/uniprot/current_release/'
             'knowledgebase/complete/docs/sec_ac.txt',
     },
     'uniprot_idmap_ftp': {
