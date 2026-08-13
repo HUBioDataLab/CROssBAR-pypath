@@ -697,8 +697,13 @@ urls = {
     },
     'disgenet': {
         'api_url': 'https://api.disgenet.com/api/v1',
-        # as far as I know, the two below are no longer used
-        'annotation_label': 'Disease-gene associations', 
+        # legacy: the disgenet.org API and bulk files are retired and 404.
+        'api_url_legacy': 'https://www.disgenet.org/api',
+        'disease_id_mappings': 'https://www.disgenet.org/static/disgenet_ap1/files/downloads/disease_mappings.tsv.gz',
+        'variant_gene_mappings': 'https://www.disgenet.org/static/disgenet_ap1/files/downloads/variant_to_gene_mappings.tsv.gz',
+        'annotation_label': 'Disease-gene associations',
+        'annotations': 'http://www.disgenet.org/static/disgenet_ap1/files/'\
+            'downloads/%s_gene_disease_associations.tsv.gz',
         'annotation_datasets': ['curated', 'literature', 'befree', 'all'],
     },
     'hsn': {
