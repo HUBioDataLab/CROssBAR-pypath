@@ -56,15 +56,12 @@ urls = {
         'details': 'https://rest.uniprot.org/idmapping/details/%s',
         'fields': 'https://rest.uniprot.org/configure/idmapping/fields',
     },
-    'corum': {
-        'label':
-        'CORUM is a database of protein complexes, downloadable in csv format',
-        'url_old':
-        'http://mips.helmholtz-muenchen.de/genre/proj/corum/allComplexes.csv',
-        'url': 'http://mips.helmholtz-muenchen.de/corum/download/'
-            'allComplexes.txt.zip',
-        'url_rescued':
-            'https://rescued.omnipathdb.org/CORUM_allComplexes.txt.zip',
+    'corum': { 
+         'label':
+        'CORUM is a database of protein complexes, downloadable in '
+        'txt, json and xml formats',
+        'url':
+        'https://mips.helmholtz-muenchen.de/fastapi-corum/public/file/download_current_file?file_id=complete&file_format=txt',
     },
     'pfam_pdb': {
         'label': 'PDB-Pfam mapping and names of Pfam domains',
@@ -699,7 +696,9 @@ urls = {
             'msigdb_v7.0_files_to_download_locally.zip',
     },
     'disgenet': {
-        'api_url': 'https://www.disgenet.org/api',
+        'api_url': 'https://api.disgenet.com/api/v1',
+        # legacy: the disgenet.org API and bulk files are retired and 404.
+        'api_url_legacy': 'https://www.disgenet.org/api',
         'disease_id_mappings': 'https://www.disgenet.org/static/disgenet_ap1/files/downloads/disease_mappings.tsv.gz',
         'variant_gene_mappings': 'https://www.disgenet.org/static/disgenet_ap1/files/downloads/variant_to_gene_mappings.tsv.gz',
         'annotation_label': 'Disease-gene associations',
