@@ -19,25 +19,31 @@
 
 import os
 import sys
+import json
 import textwrap
+import functools
 import collections
-
-import bs4
 
 import pypath.resources.urls as urls
 import pypath.share.curl as curl
 import pypath.share.common as common
 import pypath.share.session as session
-import pypath.share.settings as settings
 
 _logger = session.Logger(name = 'unichem_input')
 _log = _logger._log
 
 
+@functools.lru_cache(maxsize = 1)
 def unichem_info():
     """
     List of ID types in UniChem. See more details at
     https://www.ebi.ac.uk/unichem/ucquery/listSources.
+
+    The response is retrieved by `curl.Curl`, hence it is cached on disk and
+    subsequent calls do not hit the UniChem API. This matters because the
+    source list is required to build the URL of the bulk mapping files: if
+    the API is unreachable, `unichem_mapping` is unable to proceed even if
+    the bulk file itself is already in the cache.
 
     Returns
         (list): A list of named tuples, each representing information about
@@ -55,16 +61,17 @@ def unichem_info():
         ),
     )
 
-    import requests
-
     url = urls.urls['unichem']['sources']
 
-    response = requests.get(url, timeout=settings.get('curl_timeout'))
-    response.raise_for_status()
-    
+    c = curl.Curl(url, large = False)
 
-    data = response.json()
+    if not c.result:
 
+        msg = 'Failed to retrieve the list of UniChem sources from `%s`.' % url
+        _log(msg)
+        raise RuntimeError(msg)
+
+    data = json.loads(c.result)
 
     result = []
 
