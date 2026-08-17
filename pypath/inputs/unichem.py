@@ -92,19 +92,23 @@ def unichem_info():
 
 def unichem_sources():
     """
-    ID type numeric codes and labels in UniChem. For more information see
+    ID type numeric codes and names in UniChem. For more information see
     `unichem_info`.
 
+    UniChem provides two names for each resource: a display label (`ChEMBL`)
+    and a machine readable name (`chembl`). The latter is what callers use to
+    address an ID type, hence it is the one returned here; the display label
+    is available from `unichem_info`.
+
     Returns
-        (dict): A dict with ID type numeric IDs as keys and ID type labels
+        (dict): A dict with ID type numeric IDs as keys and ID type names
             as values.
     """
-
 
     return dict(
         (
             s.number,
-            s.label,
+            s.name,
         )
         for s in unichem_info()
     )
