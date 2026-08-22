@@ -21,7 +21,6 @@ import os
 import sys
 import json
 import textwrap
-import functools
 import collections
 
 import pypath.resources.urls as urls
@@ -33,17 +32,13 @@ _logger = session.Logger(name = 'unichem_input')
 _log = _logger._log
 
 
-@functools.lru_cache(maxsize = 1)
 def unichem_info():
     """
     List of ID types in UniChem. See more details at
     https://www.ebi.ac.uk/unichem/ucquery/listSources.
 
-    The response is retrieved by `curl.Curl`, hence it is cached on disk and
-    subsequent calls do not hit the UniChem API. This matters because the
-    source list is required to build the URL of the bulk mapping files: if
-    the API is unreachable, `unichem_mapping` is unable to proceed even if
-    the bulk file itself is already in the cache.
+    The response is cached on disk, subsequent calls do not query the
+    UniChem API.
 
     Returns
         (list): A list of named tuples, each representing information about
@@ -65,17 +60,22 @@ def unichem_info():
 
     c = curl.Curl(url, large = False)
 
-    if not c.result:
+    try:
 
-        msg = 'Failed to retrieve the list of UniChem sources from `%s`.' % url
+        sources = json.loads(c.result)['sources']
+
+    except (TypeError, ValueError, KeyError):
+
+        msg = (
+            'Failed to retrieve the list of UniChem sources from `%s`: '
+            'the response is not the expected JSON.' % url
+        )
         _log(msg)
         raise RuntimeError(msg)
 
-    data = json.loads(c.result)
-
     result = []
 
-    for item in data["sources"]:
+    for item in sources:
 
         result.append(
             UnichemSource(
@@ -120,7 +120,7 @@ def unichem_mapping(id_type_a, id_type_b):
 
     Args
         id_type_a (int,str): An ID type in UniChem: either the integer ID or
-            the string label of a resource. For a full list see
+            the name of a resource (e.g. `chembl`). For a full list see
             `unichem_sources`.
         id_type_b (int,str): An ID type in UniChem, same way as
             `id_type_a`.
@@ -142,7 +142,7 @@ def _unichem_mapping(id_type_a, id_type_b):
 
     Args
         id_type_a (int,str): An ID type in UniChem: either the integer ID or
-            the string label of a resource. For a full list see
+            the name of a resource (e.g. `chembl`). For a full list see
             `unichem_sources`.
         id_type_b (int,str): An ID type in UniChem, same way as
             `id_type_a`.

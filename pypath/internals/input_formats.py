@@ -650,9 +650,6 @@ class BiomartMapping(MappingInput):
 
 class UnichemMapping(MappingInput):
 
-    # this runs at class definition, i.e. at import time; UniChem being
-    # unreachable must not break importing this module (`pypath.utils.mapping`
-    # guards the same call the same way)
     try:
 
         _resource_id_types = {
