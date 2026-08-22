@@ -25,7 +25,7 @@ import pypath.resources.urls as urls
 import pypath.internals.intera as intera
 import pypath.utils.taxonomy as taxonomy
 
-def _split_semicolon(raw, expected_length=None):
+def _split_semicolon(raw: str, expected_length: int = None) -> list[str]:
     """
     Splits a semicolon-delimited CORUM field.
 
@@ -54,7 +54,7 @@ def _split_semicolon(raw, expected_length=None):
 
     return parts
 
-def corum_complexes(organism: Union[int, str] = "all"):
+def corum_complexes(organism: Union[int, str] = "all") -> dict[str, intera.Complex]:
     """
 
     Retrieves the "Complete complexes" dataset. The
@@ -144,7 +144,7 @@ def corum_complexes(organism: Union[int, str] = "all"):
             subunit_pairs = zip(uniprots_raw, genesymbols_raw)
 
         else:
-
+            
             raise ValueError(
                 f'Mismatched subunit field lengths for CORUM complex '
                 f'`{rec["complex_id"]}`: subunits_uniprot_id has '
@@ -155,51 +155,31 @@ def corum_complexes(organism: Union[int, str] = "all"):
         # filter as pairs, not independently, so positions stay in sync
         subunit_pairs = [(u, g) for u, g in subunit_pairs if u]
 
-        if not subunit_pairs:
-
-            continue
-
-        gene_names = {u: g for u, g in subunit_pairs}
+        subunit_gene_names = {u: g for u, g in subunit_pairs}
         stoich_raw = _split_semicolon(
-    rec['subunits_stoechiometrie'], len(uniprots_raw)
-)
+            rec['subunits_stoechiometrie']
+        )
  
         # unlike uniprot/genesymbol, a stoichiometry mismatch doesn't
         # invalidate the whole record - we just can't trust the
         # per-subunit values, so every subunit falls back to the
-        # "one copy, count unknown" default individually
+        # "one copy" default individually
+        stoich_raw = ["x" if "x" in s else ("1" if not s else s) for s in stoich_raw]
         if len(stoich_raw) == len(uniprots_raw):
- 
             stoich_pairs = zip(uniprots_raw, stoich_raw)
- 
         else:
+            stoich_pairs = zip(uniprots_raw, stoich_raw + ["1"] * (len(uniprots_raw) - len(stoich_raw)))
  
-            stoich_pairs = zip(uniprots_raw, [''] * len(uniprots_raw))
- 
-        stoichiometry = {}
- 
+        stoichiometry = {}        
         for u, s in stoich_pairs:
+            stoichiometry[u] = s
+            
  
-            if not u:
- 
-                continue
- 
-            try:
- 
-                stoichiometry[u] = int(s)
- 
-            except (TypeError, ValueError):
- 
-                # empty or non-numeric entry (CORUM leaves this field
-                # blank often); default to one copy
-                stoichiometry[u] = 1
-
-
         pubmeds = {p for p in _split_semicolon(rec['pmid']) if p}
  
         evi_raw = _split_semicolon(rec['functions_evi'])
-        pmid_raw = _split_semicolon(rec['functions_pmid'], len(evi_raw))
-        goid_raw = _split_semicolon(rec['functions_go_id'], len(evi_raw))
+        pmid_raw = _split_semicolon(rec['functions_pmid'])
+        goid_raw = _split_semicolon(rec['functions_go_id'])
 
         # functions_evi / functions_pmid / functions_go_id are a
         # triple, positionally aligned (each index = one GO
@@ -227,14 +207,14 @@ def corum_complexes(organism: Union[int, str] = "all"):
             name = rec['complex_name'],
             components = stoichiometry,
             sources = 'CORUM',
-            references = pubmeds,
+            references = pubmeds if pubmeds else None,
             ncbi_tax_id = tax_id,
             ids = rec['complex_id'],
             attrs = {
-                'synonyms': rec['synonyms'],
-                'cell_line': rec['cell_line'],
-                'comment': rec['comment_complex'],
-                'gene_names': gene_names,
+                'synonyms': rec['synonyms'] if rec['synonyms'] else None,
+                'cell_line': rec['cell_line'] if rec['cell_line'] else None,
+                'comment': rec['comment_complex'] if rec['comment_complex'] else None,
+                'subunit_gene_names': subunit_gene_names,
                 'go_annotations': go_annotations,
             },
         )
