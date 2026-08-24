@@ -31,6 +31,7 @@ urls = {
     'uniprot_basic': {
         'label': 'URL for UniProt queries',
         'url': 'https://rest.uniprot.org/uniprotkb/stream',
+        'search': 'https://rest.uniprot.org/uniprotkb/search',
         'lists': 'https://legacy.uniprot.org/uploadlists/',
         'datasheet': 'https://rest.uniprot.org/uniprotkb/%s.txt',
         'history': 'https://rest.uniprot.org/unisave/%s?format=tsv&version=*',
