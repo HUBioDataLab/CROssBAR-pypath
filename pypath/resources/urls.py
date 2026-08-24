@@ -769,10 +769,8 @@ urls = {
             'sources=BaderLabGenes,CarisMolecularIntelligence,'
             'FoundationOneGenes,GO,GuideToPharmacologyGenes,HopkinsGroom,'
             'MskImpact,RussLampel,dGene',
-        'categories': 'https://www.dgidb.org/data/monthly_tsvs/'
-            '2021-Jan/categories.tsv',
-        'interactions': 'https://www.dgidb.org/data/monthly_tsvs/'
-            '2022-Feb/interactions.tsv',
+        'categories': 'https://dgidb.org/data/latest/categories.tsv',
+        'interactions': 'https://dgidb.org/data/latest/interactions.tsv',
     },
     'reactome': {
         'label': 'The Reactome reaction network database',

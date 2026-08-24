@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Generator, Literal
 
 import collections
+from collections import namedtuple
 
 import pandas as pd
 
@@ -108,20 +109,27 @@ def _diseases_general(
 
     record = namedtuple('DiseasesInteraction', fields)
 
-    c = curl.Curl(url, silent = False, large = True)
+    c = curl.Curl(
+        url, 
+        silent=False, 
+        large=True,
+        req_headers=[
+            "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0 Safari/537.36 Edg/129.0.0"
+        ]
+    )
     interactions = list()
 
     def proc_field(value, key):
-
+        
         if key == 'source_score':
-
             value = value.split('=')[1]
-
+            
         if key in _NUMERIC_FIELDS:
-
-            num_type = int if common.is_int(value) else float
-            value = num_type(value)
-
+            try:
+                value = int(value)
+            except ValueError:
+                value = float(value)
+                
         return value
 
 

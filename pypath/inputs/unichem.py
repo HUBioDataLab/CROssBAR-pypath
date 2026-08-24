@@ -21,6 +21,7 @@ import os
 import sys
 import textwrap
 import collections
+import warnings
 
 import bs4
 
@@ -60,7 +61,11 @@ def unichem_info():
     url = urls.urls['unichem']['sources']
 
     response = requests.get(url, timeout=settings.get('curl_timeout'))
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except Exception as e:
+        warnings.warn(f"Unichem server is unreachable. Details: {e}", UserWarning)
+        return []
     
 
     data = response.json()
