@@ -18,88 +18,207 @@
 #
 
 import csv
+from typing import Union
 
 import pypath.share.curl as curl
 import pypath.resources.urls as urls
 import pypath.internals.intera as intera
 import pypath.utils.taxonomy as taxonomy
 
+def _split_semicolon(raw: str, expected_length: int = None) -> list[str]:
+    """
+    Splits a semicolon-delimited CORUM field.
 
-def corum_complexes(organism = 9606):
-    annots = (
-        'mithocondr',
-        'nucleus',
-        'endoplasmic reticulum',
-        'cytoplasm',
-        'transcriptional control',
-        'vesicle docking',
-        'extracellular matrix component',
-        'cell-matrix adhesion',
-        'cytokines',
-        'cell death',
-        'integrin receptor signalling pathway',
-        'eukaryotic plasma membrane',
-        'nuclear membrane',
-        'cellular export and secretion',
-        'cell-substrate adherens junction',
-        'cytoskeleton',
-        'receptor binding',
-        'nucleolus',
-        'transmembrane signal transduction',
-        'transcription',
-        'modification by phosphorylation',
-        'cell-cell adhesion',
-        'intercellular junction',
-        'ion transport',
-        'cell adhesion',
-        'cell junction',
-        'endocytosis',
-    )
+    A trailing semicolon is treated as an export artifact only when
+    dropping the resulting spurious empty entry makes the result
+    match `expected_length`; otherwise the trailing empty entry is
+    kept, since it may be a real "no value" marker for the last
+    subunit. When `expected_length` is None (used for the UniProt ID
+    field itself, which defines the expected length for the other
+    fields), a lone trailing empty entry is always dropped, since an
+    empty UniProt ID carries no information and gets filtered out
+    anyway.
+    """
 
-    organism = taxonomy.ensure_ncbi_tax_id(organism)
+    parts = raw.split(';')
+
+    if expected_length is None:
+
+        if parts and parts[-1] == '':
+
+            parts = parts[:-1]
+
+    elif len(parts) == expected_length + 1 and parts[-1] == '':
+
+        parts = parts[:-1]
+
+    return parts
+
+def corum_complexes(organism: Union[int, str] = "all") -> dict[str, intera.Complex]:
+    """
+
+    Retrieves the "Complete complexes" dataset. The
+    file uses a new snake_case schema (`complex_id`, `subunits_uniprot_id`,
+    etc.).
+
+    Note 1 : records are kept separate, keyed by CORUM's own `complex_id`
+    (unique per row); we don't aggregate rows that happen to share a
+    name and component set, so that records CORUM lists separately
+    stay separate here too.
+
+    Note 2 : when the top-level `organism` field can't be resolved to an
+    NCBI Taxonomy ID (e.g. "MINK", ambiguous between American mink,
+    452646, and European mink, 9666), we fall back to
+    `subunits_organism`: if every subunit agrees on one resolvable
+    organism, we use that; otherwise the complex is skipped rather
+    than guessed.
+
+    Note 3 : mixed-species complexes (subunits from more than one
+    organism) can't have a single species, so CORUM labels their
+    `organism` as "Mammalia" instead. This resolves fine on its own to
+    NCBI Taxonomy ID 40674, so no special handling is needed - it's
+    included with `organism="all"` and correctly excluded when filtering
+    for one species (e.g. `organism=9606`).
+
+    Args:
+        organism: NCBI Taxonomy ID of the organism to keep; complexes
+            of other organisms are discarded. `None` or `"all"`
+            disables filtering (all organisms kept).
+
+    Returns:
+        A dict of `intera.Complex` objects keyed by CORUM's `complex_id`.
+    """
+
+    if organism in (None, 'all'):
+        organism = None
+    else:
+        organism = taxonomy.ensure_ncbi_tax_id(organism)
+
+    url = urls.urls['corum']['url']
+    c = curl.Curl(url, large = True, silent = False)
+
+    tab = csv.DictReader(c.result, delimiter = '\t')
 
     complexes = {}
 
-    c = curl.Curl(
-        urls.urls['corum']['url_rescued'],
-        silent = False,
-        large = True,
-        files_needed = ['allComplexes.txt'],
-    )
-
-    tab = csv.DictReader(c.result['allComplexes.txt'], delimiter = '\t')
-
     for rec in tab:
 
-        cplex_organism = rec['Organism']
+        tax_id = taxonomy.ensure_ncbi_tax_id(rec['organism'])
 
-        if taxonomy.ensure_ncbi_tax_id(cplex_organism) != organism:
+        if tax_id is None:
+
+            # Note 2 is applied here.
+            subunit_organisms = {
+                o.strip()
+                for o in _split_semicolon(rec['subunits_organism'])
+                if o.strip()
+            }
+
+            if len(subunit_organisms) == 1:
+
+                tax_id = taxonomy.ensure_ncbi_tax_id(subunit_organisms.pop())
+
+        if tax_id is None:
+
+            raise ValueError(
+                f'Could not resolve organism for CORUM complex '
+                f'`{rec["complex_id"]}` (organism = `{rec["organism"]}`, '
+                f'subunits_organism = `{rec["subunits_organism"]}`).'
+            )
+
+        # organism resolved successfully, just not the one requested
+        if organism and tax_id != organism:
 
             continue
 
-        uniprots = rec['subunits(UniProt IDs)'].split(';')
-
-        pubmeds  = rec['PubMed ID'].split(';')
-        name     = rec['ComplexName']
-
-        cplex = intera.Complex(
-            name = name,
-            components = uniprots,
-            sources = 'CORUM',
-            references = pubmeds,
-            ids = rec['ComplexID'],
-            attrs = {
-                'funcat': set(rec['FunCat description'].split(';')),
-                'go': set(rec['GO description'].split(';')),
-            },
+        uniprots_raw = _split_semicolon(rec['subunits_uniprot_id'])
+        genesymbols_raw = _split_semicolon(
+            rec['subunits_gene_name'], len(uniprots_raw)
         )
 
-        if cplex.__str__() in complexes:
+        # subunit fields are positionally aligned (same index = same
+        # subunit); a length mismatch means the alignment can't be
+        # trusted, so we fail loudly rather than guess
+        if len(uniprots_raw) == len(genesymbols_raw):
 
-            complexes[cplex.__str__()].references.update(set(pubmeds))
+            subunit_pairs = zip(uniprots_raw, genesymbols_raw)
+
+        else:
+            
+            raise ValueError(
+                f'Mismatched subunit field lengths for CORUM complex '
+                f'`{rec["complex_id"]}`: subunits_uniprot_id has '
+                f'{len(uniprots_raw)} entries, subunits_gene_name has '
+                f'{len(genesymbols_raw)}.'
+            )
+
+        # filter as pairs, not independently, so positions stay in sync
+        subunit_pairs = [(u, g) for u, g in subunit_pairs if u]
+
+        subunit_gene_names = {u: g for u, g in subunit_pairs}
+        stoich_raw = _split_semicolon(
+            rec['subunits_stoechiometrie']
+        )
+ 
+        # unlike uniprot/genesymbol, a stoichiometry mismatch doesn't
+        # invalidate the whole record - we just can't trust the
+        # per-subunit values, so every subunit falls back to the
+        # "one copy" default individually
+        stoich_raw = ["x" if "x" in s else ("1" if not s else s) for s in stoich_raw]
+        if len(stoich_raw) == len(uniprots_raw):
+            stoich_pairs = zip(uniprots_raw, stoich_raw)
+        else:
+            stoich_pairs = zip(uniprots_raw, stoich_raw + ["1"] * (len(uniprots_raw) - len(stoich_raw)))
+ 
+        stoichiometry = {}        
+        for u, s in stoich_pairs:
+            stoichiometry[u] = s
+            
+ 
+        pubmeds = {p for p in _split_semicolon(rec['pmid']) if p}
+ 
+        evi_raw = _split_semicolon(rec['functions_evi'])
+        pmid_raw = _split_semicolon(rec['functions_pmid'])
+        goid_raw = _split_semicolon(rec['functions_go_id'])
+
+        # functions_evi / functions_pmid / functions_go_id are a
+        # triple, positionally aligned (each index = one GO
+        # annotation).We store them as a set of (go_id, evidence,
+        # pmid) tuples rather than three parallel lists: this makes
+        # the record self-aligned (no index bookkeeping) instead of
+        # three lists that can silently drift out of sync.
+        if len(evi_raw) == len(pmid_raw) == len(goid_raw):
+
+            go_annotations = {
+                (g, e, p) for e, p, g in zip(evi_raw, pmid_raw, goid_raw)
+                if g
+            }
 
         else:
 
-            complexes[cplex.__str__()] = cplex
+            raise ValueError(
+                f'Mismatched GO annotation field lengths for CORUM '
+                f'complex `{rec["complex_id"]}`: functions_evi has '
+                f'{len(evi_raw)}, functions_pmid has {len(pmid_raw)}, '
+                f'functions_go_id has {len(goid_raw)}.'
+            )
+
+        cplex = intera.Complex(
+            name = rec['complex_name'],
+            components = stoichiometry,
+            sources = 'CORUM',
+            references = pubmeds if pubmeds else None,
+            ncbi_tax_id = tax_id,
+            ids = rec['complex_id'],
+            attrs = {
+                'synonyms': rec['synonyms'] if rec['synonyms'] else None,
+                'cell_line': rec['cell_line'] if rec['cell_line'] else None,
+                'comment': rec['comment_complex'] if rec['comment_complex'] else None,
+                'subunit_gene_names': subunit_gene_names,
+                'go_annotations': go_annotations,
+            },
+        )
+
+        complexes[rec['complex_id']] = cplex
 
     return complexes
