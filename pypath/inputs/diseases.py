@@ -76,7 +76,7 @@ def _diseases_general(
 
     query_type = 'filtered' if filtered else 'full'
 
-    url = urls['diseases']['url'] % (data_origin, query_type)
+    url = urls.urls['diseases']['url'] % (data_origin, query_type)
 
     query_fields = {
         'textmining':
@@ -85,7 +85,7 @@ def _diseases_general(
                 'confidence',
                 'url'
             ],
-        'knowlwdge':
+        'knowledge':
             [
                 'resource',
                 'evidence_type',
@@ -142,7 +142,7 @@ def _diseases_general(
             for f, v in zip(fields, line)
         ]
 
-        yield record(**line)
+        yield record(*line)
 
 
 def textmining_full(
