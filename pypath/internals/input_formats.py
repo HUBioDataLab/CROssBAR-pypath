@@ -650,10 +650,18 @@ class BiomartMapping(MappingInput):
 
 class UnichemMapping(MappingInput):
 
-    _resource_id_types = {
-        id_type: id_type
-        for id_type in unichem_input.unichem_sources().values()
-    }
+    try:
+
+        _resource_id_types = {
+            id_type: id_type
+            for id_type in unichem_input.unichem_sources().values()
+        }
+
+    except Exception:
+
+        _logger._log('Failed to retrieve UniChem ID types:')
+        _logger._log_traceback()
+        _resource_id_types = {}
 
     def __init__(
             self,

@@ -19,16 +19,14 @@
 
 import os
 import sys
+import json
 import textwrap
 import collections
-
-import bs4
 
 import pypath.resources.urls as urls
 import pypath.share.curl as curl
 import pypath.share.common as common
 import pypath.share.session as session
-import pypath.share.settings as settings
 
 _logger = session.Logger(name = 'unichem_input')
 _log = _logger._log
@@ -38,6 +36,9 @@ def unichem_info():
     """
     List of ID types in UniChem. See more details at
     https://www.ebi.ac.uk/unichem/ucquery/listSources.
+
+    The response is cached on disk, subsequent calls do not query the
+    UniChem API.
 
     Returns
         (list): A list of named tuples, each representing information about
@@ -55,20 +56,26 @@ def unichem_info():
         ),
     )
 
-    import requests
-
     url = urls.urls['unichem']['sources']
 
-    response = requests.get(url, timeout=settings.get('curl_timeout'))
-    response.raise_for_status()
-    
+    c = curl.Curl(url, large = False)
 
-    data = response.json()
+    try:
 
+        sources = json.loads(c.result)['sources']
+
+    except (TypeError, ValueError, KeyError):
+
+        msg = (
+            'Failed to retrieve the list of UniChem sources from `%s`: '
+            'the response is not the expected JSON.' % url
+        )
+        _log(msg)
+        raise RuntimeError(msg)
 
     result = []
 
-    for item in data["sources"]:
+    for item in sources:
 
         result.append(
             UnichemSource(
@@ -85,19 +92,23 @@ def unichem_info():
 
 def unichem_sources():
     """
-    ID type numeric codes and labels in UniChem. For more information see
+    ID type numeric codes and names in UniChem. For more information see
     `unichem_info`.
 
+    UniChem provides two names for each resource: a display label (`ChEMBL`)
+    and a machine readable name (`chembl`). The latter is what callers use to
+    address an ID type, hence it is the one returned here; the display label
+    is available from `unichem_info`.
+
     Returns
-        (dict): A dict with ID type numeric IDs as keys and ID type labels
+        (dict): A dict with ID type numeric IDs as keys and ID type names
             as values.
     """
-
 
     return dict(
         (
             s.number,
-            s.label,
+            s.name,
         )
         for s in unichem_info()
     )
@@ -109,7 +120,7 @@ def unichem_mapping(id_type_a, id_type_b):
 
     Args
         id_type_a (int,str): An ID type in UniChem: either the integer ID or
-            the string label of a resource. For a full list see
+            the name of a resource (e.g. `chembl`). For a full list see
             `unichem_sources`.
         id_type_b (int,str): An ID type in UniChem, same way as
             `id_type_a`.
@@ -131,7 +142,7 @@ def _unichem_mapping(id_type_a, id_type_b):
 
     Args
         id_type_a (int,str): An ID type in UniChem: either the integer ID or
-            the string label of a resource. For a full list see
+            the name of a resource (e.g. `chembl`). For a full list see
             `unichem_sources`.
         id_type_b (int,str): An ID type in UniChem, same way as
             `id_type_a`.
