@@ -11,7 +11,6 @@ import pypath.utils.mapping as mapping
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-BASE_URL = "https://ddinter2.scbdd.com/server/"
 HEADERS = {
     "Accept": "application/json, text/javascript, */*; q=0.01",
     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -19,8 +18,7 @@ HEADERS = {
     "X-Requested-With": "XMLHttpRequest",
 }
 
-def _fetch_datatables_records(endpoint: str) -> list[dict]:
-    url = f"{BASE_URL}{endpoint}/"
+def _fetch_datatables_records(url: str) -> list[dict]:
     records_per_page = 50
     draw = 1
     all_data = []
@@ -61,7 +59,7 @@ def _fetch_datatables_records(endpoint: str) -> list[dict]:
                     
             except Exception as e:
                 import time
-                print(f"\n[WARNING] {endpoint} - Server did not respond ({e}). Attempt: {attempt+1}/{max_retries}...")
+                print(f"\n[WARNING] {url} - Server did not respond ({e}). Attempt: {attempt+1}/{max_retries}...")
                 time.sleep(5)
         
         if not page_success:
@@ -72,7 +70,7 @@ def _fetch_datatables_records(endpoint: str) -> list[dict]:
     return all_data
 
 def _get_interaction_descriptions() -> dict:
-    raw_interactions = _fetch_datatables_records("interaction-source")
+    raw_interactions = _fetch_datatables_records(urls.urls['ddinter_v2']['interaction_source'])
     return {str(inter.get("id")): inter.get("interaction", "") for inter in raw_interactions}
 
 def _ensure_hashable(data):
@@ -116,7 +114,7 @@ def _scrape_legacy_identifiers(drug_id: str) -> dict:
     return mapping_dict
 
 def ddinter_mappings_v2(return_df: bool = False) -> list[tuple] | pd.DataFrame:
-    raw_drugs = _fetch_datatables_records("drug-source")
+    raw_drugs = _fetch_datatables_records(urls.urls['ddinter_v2']['drugs'])
     
     fields = ('ddinter', 'drugbank', 'chembl', 'pubchem')
     record = namedtuple('DdinterV2Identifiers', fields, defaults=(None,) * len(fields))
@@ -138,7 +136,7 @@ def ddinter_mappings_v2(return_df: bool = False) -> list[tuple] | pd.DataFrame:
     return pd.DataFrame(result) if return_df else list(result)
 
 def ddinter_interactions_v2(return_df: bool = False) -> list[tuple] | pd.DataFrame:
-    raw_drugs = _fetch_datatables_records("drug-source")
+    raw_drugs = _fetch_datatables_records(urls.urls['ddinter_v2']['drugs'])
     drug_map = {d.get("internalID"): d for d in raw_drugs if d.get("internalID")}
     desc_map = _get_interaction_descriptions()
     
@@ -150,8 +148,8 @@ def ddinter_interactions_v2(return_df: bool = False) -> list[tuple] | pd.DataFra
     )
     
     for drug_a_id, drug_a_info in drug_map.items():
-        endpoint = f"interact-with/{drug_a_id}"
-        drug_a_pairs = _fetch_datatables_records(endpoint)
+        url = urls.urls['ddinter_v2']['drug_interactions'] % drug_a_id
+        drug_a_pairs = _fetch_datatables_records(url)
         
         drug1_id = drug_a_id
         drug1_name = drug_a_info.get("name")
@@ -177,7 +175,7 @@ def ddinter_interactions_v2(return_df: bool = False) -> list[tuple] | pd.DataFra
     return pd.DataFrame(result) if return_df else list(result)
 
 def ddinter_n_drugs_v2() -> int:
-    raw_drugs = _fetch_datatables_records("drug-source")
+    raw_drugs = _fetch_datatables_records(urls.urls['ddinter_v2']['drugs'])
     return len(raw_drugs)
 
 def ddinter_identifiers_v2(drug: str) -> list[tuple]:
@@ -196,7 +194,7 @@ def ddinter_identifiers_v2(drug: str) -> list[tuple]:
 def ddinter_drug_interactions_v2(drug: str, return_df: bool = False) -> list[tuple] | pd.DataFrame:
     desc_map = _get_interaction_descriptions()
     
-    raw_drugs = _fetch_datatables_records("drug-source")
+    raw_drugs = _fetch_datatables_records(urls.urls['ddinter_v2']['drugs'])
     drug1_name = next((d.get("name") for d in raw_drugs if d.get("internalID") == drug), None)
     
     record = namedtuple(
@@ -205,8 +203,8 @@ def ddinter_drug_interactions_v2(drug: str, return_df: bool = False) -> list[tup
         defaults=None,
     )
     result = set()
-    endpoint = f"interact-with/{drug}"
-    drug_pairs = _fetch_datatables_records(endpoint)
+    url = urls.urls['ddinter_v2']['drug_interactions'] % drug
+    drug_pairs = _fetch_datatables_records(url)
     
     if not drug_pairs:
         return pd.DataFrame(result) if return_df else list(result)
@@ -231,7 +229,7 @@ def ddinter_drug_interactions_v2(drug: str, return_df: bool = False) -> list[tup
     return pd.DataFrame(result) if return_df else list(result)
 
 def ddinter_disease_interactions_v2(return_df: bool = False) -> list[tuple] | pd.DataFrame:
-    raw_drugs = _fetch_datatables_records("drug-source")
+    raw_drugs = _fetch_datatables_records(urls.urls['ddinter_v2']['drugs'])
     drug_map = {d.get("internalID"): d.get("name") for d in raw_drugs if d.get("internalID")}
     
     record = namedtuple(
@@ -242,8 +240,8 @@ def ddinter_disease_interactions_v2(return_df: bool = False) -> list[tuple] | pd
     result = set()
 
     for d_id, d_name in drug_map.items():
-        endpoint = f"interact-with-dis/{d_id}"
-        records = _fetch_datatables_records(endpoint)
+        url = urls.urls['ddinter_v2']['disease_interactions'] % d_id
+        records = _fetch_datatables_records(url)
         
         for row in records:
             disease_name = row.get('diseaseName', '').strip()
@@ -263,7 +261,7 @@ def ddinter_disease_interactions_v2(return_df: bool = False) -> list[tuple] | pd
     return pd.DataFrame(result) if return_df else list(result)
 
 def ddinter_food_interactions_v2(return_df: bool = False) -> list[tuple] | pd.DataFrame:
-    raw_drugs = _fetch_datatables_records("drug-source")
+    raw_drugs = _fetch_datatables_records(urls.urls['ddinter_v2']['drugs'])
     drug_map = {d.get("internalID"): d.get("name") for d in raw_drugs if d.get("internalID")}
     
     record = namedtuple(
@@ -274,8 +272,8 @@ def ddinter_food_interactions_v2(return_df: bool = False) -> list[tuple] | pd.Da
     result = set()
 
     for d_id, d_name in drug_map.items():
-        endpoint = f"interact-with-food/{d_id}"
-        records = _fetch_datatables_records(endpoint)
+        url = urls.urls['ddinter_v2']['food_interactions'] % d_id
+        records = _fetch_datatables_records(url)
         
         for row in records:
             description = row.get('newInteraction', '').strip()

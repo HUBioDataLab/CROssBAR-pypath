@@ -1689,6 +1689,22 @@ urls = {
         'interaction':
             'http://ddinter.scbdd.com/ddinter/grapher-datasource/%s',
     },
+    'ddinter_v2': {
+        'label': (
+            'DDInter 2.0, the updated release of the DDInter drug-drug '
+            'interaction database, also covering drug-disease and '
+            'drug-food interactions.'
+        ),
+        'drugs': 'https://ddinter2.scbdd.com/server/drug-source/',
+        'interaction_source':
+            'https://ddinter2.scbdd.com/server/interaction-source/',
+        'drug_interactions':
+            'https://ddinter2.scbdd.com/server/interact-with/%s/',
+        'disease_interactions':
+            'https://ddinter2.scbdd.com/server/interact-with-dis/%s/',
+        'food_interactions':
+            'https://ddinter2.scbdd.com/server/interact-with-food/%s/',
+    },
     'reactome': {
         'label': (
             'REACTOME is an open-source, open access, manually curated '
