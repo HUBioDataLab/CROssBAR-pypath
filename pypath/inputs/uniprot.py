@@ -25,8 +25,10 @@ from typing import Iterable
 
 import re
 import json
+import time
 import collections
 import itertools
+import urllib.parse
 
 import pandas as pd
 
@@ -56,50 +58,79 @@ def _all_uniprots(organism = 9606, swissprot = None):
 
     swissprot = _swissprot_param(swissprot)
     rev = '' if swissprot is None else ' AND reviewed: %s' % swissprot
-    url = urls.urls['uniprot_basic']['url']
-    get = {
-        'query': 'organism_id:%s%s' % (str(organism), rev),
-        'format': 'tsv',
-        'fields': 'accession',
-    }
+    url = urls.urls['uniprot_basic']['search']
+    query = 'organism_id:%s%s' % (str(organism), rev)
 
     if organism == '*':
-        get['query'] = rev.strip(' AND ')
+        query = rev.strip(' AND ')
+
+    get = {
+        'query': query,
+        'format': 'tsv',
+        'fields': 'accession',
+        'size': '500',
+    }
 
     max_attempts = 3
+    result = set()
+    page = 0
 
-    for attempt in range(1, max_attempts + 1):
+    while True:
 
-        c = curl.Curl(
-            url,
-            get = get,
-            silent = False,
-            slow = True,
-            cache = attempt == 1,
-        )
-        data = c.result or ''
+        for attempt in range(1, max_attempts + 1):
 
-        result = {l.strip() for l in data.split('\n')[1:] if l.strip()}
+            c = curl.Curl(
+                url,
+                get = get,
+                silent = False,
+                slow = True,
+                cache = False,
+            )
+            data = c.result or ''
+            page_ids = {l.strip() for l in data.split('\n')[1:] if l.strip()}
 
-        if data and all(valid_uniprot(l) for l in result):
+            if data and all(valid_uniprot(l) for l in page_ids):
 
-            return result
+                break
 
-        _logger._log(
-            'UniProt `_all_uniprots` invalid response on attempt '
-            '%d/%d: `%s`' % (attempt, max_attempts, data[:200])
-        )
+            _logger._log(
+                'UniProt `_all_uniprots` invalid response for page '
+                '%d, attempt %d/%d: `%s`' % (
+                    page, attempt, max_attempts, data[:200],
+                )
+            )
 
-        if attempt < max_attempts:
-            time.sleep(2 ** (attempt - 1))
+            if attempt < max_attempts:
+                time.sleep(2 ** (attempt - 1))
 
-    msg = (
-        'Could not retrieve a valid UniProt accession list from `%s` '
-        'after %d attempts.' % (url, max_attempts)
-    )
-    _logger._log(msg)
+        else:
 
-    raise RuntimeError(msg)
+            msg = (
+                'Could not retrieve a valid UniProt accession list from '
+                '`%s` (page %d) after %d attempts.' % (
+                    url, page, max_attempts,
+                )
+            )
+            _logger._log(msg)
+
+            raise RuntimeError(msg)
+
+        result.update(page_ids)
+        page += 1
+
+        c.get_headers()
+        link = c.resp_headers_dict.get('link', '')
+        next_match = re.search(r'<([^>]+)>;\s*rel="next"', link)
+
+        if not next_match:
+
+            break
+
+        next_url = urllib.parse.urlsplit(next_match.group(1))
+        url = urllib.parse.urlunsplit(next_url._replace(query = ''))
+        get = dict(urllib.parse.parse_qsl(next_url.query))
+
+    return result
 
 def _swissprot_param(swissprot):
 

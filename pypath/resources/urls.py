@@ -31,6 +31,7 @@ urls = {
     'uniprot_basic': {
         'label': 'URL for UniProt queries',
         'url': 'https://rest.uniprot.org/uniprotkb/stream',
+        'search': 'https://rest.uniprot.org/uniprotkb/search',
         'lists': 'https://legacy.uniprot.org/uploadlists/',
         'datasheet': 'https://rest.uniprot.org/uniprotkb/%s.txt',
         'history': 'https://rest.uniprot.org/unisave/%s?format=tsv&version=*',
@@ -769,10 +770,8 @@ urls = {
             'sources=BaderLabGenes,CarisMolecularIntelligence,'
             'FoundationOneGenes,GO,GuideToPharmacologyGenes,HopkinsGroom,'
             'MskImpact,RussLampel,dGene',
-        'categories': 'https://www.dgidb.org/data/monthly_tsvs/'
-            '2021-Jan/categories.tsv',
-        'interactions': 'https://www.dgidb.org/data/monthly_tsvs/'
-            '2022-Feb/interactions.tsv',
+        'categories': 'https://dgidb.org/data/latest/categories.tsv',
+        'interactions': 'https://dgidb.org/data/latest/interactions.tsv',
     },
     'reactome': {
         'label': 'The Reactome reaction network database',
