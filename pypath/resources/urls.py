@@ -1703,12 +1703,17 @@ urls = {
             'ReactomePathwaysRelation.txt',
     },
     'compath': {
-        'label': (
-            'A database of proposed and accepted mappings by the '
-            'users/curators between a pair of pathways.'
-        ),
-        'url': 'https://compath.scai.fraunhofer.de/export_mappings',
-    },
+    'label': (
+        'A database of proposed and accepted mappings by the '
+        'users/curators between a pair of pathways.'
+    ),
+    'url': 'https://compath.scai.fraunhofer.de/export_mappings',  # old server, returns empty data, left it for reference
+    'github_urls': [
+        'https://raw.githubusercontent.com/ComPath/compath-resources/master/mappings/kegg_reactome.csv',
+        'https://raw.githubusercontent.com/ComPath/compath-resources/master/mappings/kegg_wikipathways.csv',
+        'https://raw.githubusercontent.com/ComPath/compath-resources/master/mappings/wikipathways_reactome.csv',
+    ],
+},
     'trrust': {
         'label': 'Transcriptional Regulatory Relationships Unraveled by Sentence-based Text mining',
         'scraping_url': 'https://www.grnpedia.org/trrust/data/search_list.%s.htm',

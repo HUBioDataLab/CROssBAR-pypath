@@ -62,10 +62,6 @@ def _compath_mappings(
         target_db: Literal['kegg', 'wikipathways', 'reactome'] | None = None,
     ) -> Generator[tuple]:
 
-    url = urls.urls['compath']['url']
-    c = curl.Curl(url, large = True)
-
-    result = set()
     fields = (
         'pathway1',
         'pathway_id_1',
@@ -76,21 +72,38 @@ def _compath_mappings(
         'target_db',
     )
     record = collections.namedtuple('CompathPathwayToPathway', fields)
+    for file_url in urls.urls['compath']['github_urls']:
 
-    for line in c.result:
+        c = curl.Curl(file_url, large = True)
 
-        line = line.strip().split('\t')
+        if c.result is None:
+            continue
 
-        if (
-            source_db is None or line[2] == source_db and
-            target_db is None or line[6] == target_db
-        ):
+        lines = list(c.result)
 
-            for db_i, pw_i in zip((2, 6), (1, 5)):
+        for line in lines[1:]:  # basligi atla
 
-                if line[db_i] == 'kegg':
+            parts = line.strip().split(',')
 
-                    line[pw_i] = line[pw_i][5:]
+            if len(parts) < 7:
+                continue
 
-            yield record(*line)
+            src_res, src_id, src_name, relation, tgt_res, tgt_id, tgt_name = parts[:7]
 
+            src_res = 'kegg' if src_res == 'kegg.pathway' else src_res
+            tgt_res = 'kegg' if tgt_res == 'kegg.pathway' else tgt_res
+
+            if (
+                (source_db is None or src_res == source_db) and
+                (target_db is None or tgt_res == target_db)
+            ):
+
+                yield record(
+                    pathway1 = src_name,
+                    pathway_id_1 = src_id,
+                    source_db = src_res,
+                    relation = relation,
+                    pathway2 = tgt_name,
+                    pathway_id_2 = tgt_id,
+                    target_db = tgt_res,
+                )
