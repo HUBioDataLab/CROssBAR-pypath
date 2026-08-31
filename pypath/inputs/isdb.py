@@ -17,7 +17,7 @@
 #  Website: https://pypath.omnipathdb.org/
 #
 
-from typing import Generator, List, Optional
+from typing import Generator, Optional
 
 import re
 import csv
@@ -185,33 +185,63 @@ def isdb_raw(version: Optional[str] = None) -> Generator[tuple, None, None]:
         )
 
 
-def isdb_ppi_interactions(version: Optional[str] = None) -> List[tuple]:
+def isdb_ppi_interactions(
+        version: Optional[str] = None,
+    ) -> Generator[tuple, None, None]:
     """
     Protein level interactions from ISDB.
 
-    Records where both partners are identified by a UniProt ID. Records
-    with a UniProt ID only on one side are protein level on one end and
-    organism level on the other, these belong to neither this function nor
+    Records where both partners are identified by a UniProt ID. The presence
+    of the UniProt IDs splits the records into three disjoint sets, see also
+    `isdb_protein_organism_interactions` and
     `isdb_organism_organism_interactions`.
 
     Args
         version: Date of an ISDB release, e.g. `2026_05_09`. By default the
             most recent release is used.
 
-    Returns
-        (list): Named tuples, each representing one interaction.
+    Yields
+        (tuple): Named tuples, each representing one interaction.
     """
 
-    return [
-        record
-        for record in isdb_raw(version = version)
-        if record.uniprot_id_a and record.uniprot_id_b
-    ]
+    for record in isdb_raw(version = version):
+
+        if record.uniprot_id_a and record.uniprot_id_b:
+
+            yield record
+
+
+def isdb_protein_organism_interactions(
+        version: Optional[str] = None,
+    ) -> Generator[tuple, None, None]:
+    """
+    Interactions between a protein and an organism from ISDB.
+
+    Records where only one of the partners is identified by a UniProt ID:
+    one end is a protein, the other one is known only at the level of the
+    taxon. Most of them come from host-pathogen resources (phi-base, PHISTO,
+    VirHostNet), the rest from general interaction resources where the
+    partner is not a UniProt protein. Which of them represent a host-pathogen
+    relationship is not decided here, the records are passed on as they are.
+
+    Args
+        version: Date of an ISDB release, e.g. `2026_05_09`. By default the
+            most recent release is used.
+
+    Yields
+        (tuple): Named tuples, each representing one interaction.
+    """
+
+    for record in isdb_raw(version = version):
+
+        if bool(record.uniprot_id_a) != bool(record.uniprot_id_b):
+
+            yield record
 
 
 def isdb_organism_organism_interactions(
         version: Optional[str] = None,
-    ) -> List[tuple]:
+    ) -> Generator[tuple, None, None]:
     """
     Organism level interactions from ISDB.
 
@@ -223,12 +253,12 @@ def isdb_organism_organism_interactions(
         version: Date of an ISDB release, e.g. `2026_05_09`. By default the
             most recent release is used.
 
-    Returns
-        (list): Named tuples, each representing one interaction.
+    Yields
+        (tuple): Named tuples, each representing one interaction.
     """
 
-    return [
-        record
-        for record in isdb_raw(version = version)
-        if not record.uniprot_id_a and not record.uniprot_id_b
-    ]
+    for record in isdb_raw(version = version):
+
+        if not record.uniprot_id_a and not record.uniprot_id_b:
+
+            yield record
