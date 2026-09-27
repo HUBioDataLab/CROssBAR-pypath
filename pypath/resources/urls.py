@@ -1773,6 +1773,14 @@ urls = {
         'url_human': 'http://bio-annotation.cn/gutmgene/public/res/Gut%20Microbe%20and%20Gene-human.txt',
         'url_mouse': 'http://bio-annotation.cn/gutmgene/public/res/Gut%20Microbe%20and%20Gene-mouse.txt',
     },
+    'isdb': {
+        'label': 'Interacting Species Database: a resource of interspecies '
+            'interactions from the molecular to the ecological level',
+        'versions': 'https://api.github.com/repos/ElhabashyLab/ISDB/'
+            'contents/versions',
+        'url': 'https://raw.githubusercontent.com/ElhabashyLab/ISDB/'
+            'main/versions/ISDB_%s.tsv.gz',
+    },
 }
 
 
