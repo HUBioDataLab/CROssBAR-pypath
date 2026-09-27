@@ -56,6 +56,24 @@ ISDB_COLUMNS = (
     'Database',
 )
 
+# the processed record yielded by the `_interactions` functions, defined
+# once here rather than per record so all records share one type
+IsdbInteraction = collections.namedtuple(
+    'IsdbInteraction',
+    (
+        'uniprot_a',
+        'uniprot_b',
+        'isoform_a',
+        'isoform_b',
+        'taxon_a',
+        'taxon_b',
+        'interaction_type',
+        'ontology_id',
+        'pubmeds',
+        'databases',
+    ),
+)
+
 
 def isdb_latest_version() -> str:
     """
@@ -241,22 +259,6 @@ def _isdb_interaction(record: tuple) -> tuple:
     `uniprot_b`, its taxon still identifies it.
     """
 
-    IsdbInteraction = collections.namedtuple(
-        'IsdbInteraction',
-        (
-            'uniprot_a',
-            'uniprot_b',
-            'isoform_a',
-            'isoform_b',
-            'taxon_a',
-            'taxon_b',
-            'interaction_type',
-            'ontology_id',
-            'pubmeds',
-            'databases',
-        ),
-    )
-
     uniprot_a, isoform_a = (
         inputs_common._try_isoform(record.uniprot_id_a)
             if record.uniprot_id_a else
@@ -298,7 +300,7 @@ def _isdb_interactions(
             interspecies resource.
 
     Yields
-        (tuple): Named tuples, see `_isdb_interaction` for the fields.
+        (tuple): Named tuples, see `IsdbInteraction` for the fields.
     """
 
     # the taxonomy IDs are compared as strings on the raw records, so the
@@ -336,8 +338,8 @@ def isdb_ppi_interactions(
             interspecies resource.
 
     Yields
-        (tuple): Named tuples, each representing one interaction, see
-            `_isdb_interaction` for the fields.
+        (tuple): `IsdbInteraction` named tuples, each representing one
+            interaction.
     """
 
     for i in _isdb_interactions(version = version, organism = organism):
@@ -370,8 +372,8 @@ def isdb_protein_organism_interactions(
             interspecies resource.
 
     Yields
-        (tuple): Named tuples, each representing one interaction, see
-            `_isdb_interaction` for the fields.
+        (tuple): `IsdbInteraction` named tuples, each representing one
+            interaction.
     """
 
     for i in _isdb_interactions(version = version, organism = organism):
@@ -401,8 +403,8 @@ def isdb_organism_organism_interactions(
             interspecies resource.
 
     Yields
-        (tuple): Named tuples, each representing one interaction, see
-            `_isdb_interaction` for the fields.
+        (tuple): `IsdbInteraction` named tuples, each representing one
+            interaction.
     """
 
     for i in _isdb_interactions(version = version, organism = organism):
