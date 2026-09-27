@@ -25,6 +25,7 @@ import json
 import collections
 
 import pypath.resources.urls as urls
+import pypath.inputs.common as inputs_common
 import pypath.share.curl as curl
 import pypath.share.session as session
 
@@ -114,11 +115,12 @@ def isdb_raw(version: Optional[str] = None) -> Generator[tuple, None, None]:
             most recent release is used.
 
     Yields
-        (tuple): Named tuples, each representing one ISDB record.
+        (tuple): Named tuples, each representing one ISDB record with all
+            its fields as strings.
     """
 
-    IsdbInteraction = collections.namedtuple(
-        'IsdbInteraction',
+    IsdbRecord = collections.namedtuple(
+        'IsdbRecord',
         (
             'serial_number',
             'taxonomy_id_a',
@@ -174,7 +176,7 @@ def isdb_raw(version: Optional[str] = None) -> Generator[tuple, None, None]:
             malformed += 1
             continue
 
-        yield IsdbInteraction(*(field.strip() for field in record))
+        yield IsdbRecord(*(field.strip() for field in record))
 
     if malformed:
 
@@ -184,6 +186,100 @@ def isdb_raw(version: Optional[str] = None) -> Generator[tuple, None, None]:
                 version,
             )
         )
+
+
+def _isdb_pubmeds(reference: str) -> set:
+    """
+    PubMed IDs from the `Reference` field of an ISDB record.
+
+    The field is a `|` separated mix of `pubmed:`, `PMID:` (sometimes with
+    a comma separated list), bare PMIDs, `doi:`, `imex:` and `mint:` items,
+    a few records contain line breaks. Only the numeric PubMed IDs are kept,
+    values such as `pubmed:DIP-17212S` or `PMID:nan` are dropped.
+    """
+
+    pubmeds = set()
+
+    for item in re.split(r'[|\r\n]+', reference):
+
+        item = item.strip()
+
+        if item.startswith('pubmed:'):
+
+            candidates = (item[7:],)
+
+        elif item.startswith('PMID:'):
+
+            candidates = item[5:].split(',')
+
+        else:
+
+            candidates = (item,)
+
+        pubmeds.update(c.strip() for c in candidates if c.strip().isdigit())
+
+    return pubmeds
+
+
+def _isdb_databases(database: str) -> set:
+    """
+    Source databases from the `Database` field of an ISDB record, which
+    is `|` separated when a record is supported by more than one resource.
+    """
+
+    return {db.strip() for db in database.split('|') if db.strip()}
+
+
+def _isdb_interaction(record: tuple) -> tuple:
+    """
+    Processed record from a raw ISDB record, with only the fields needed
+    for an interaction and in the form the other PPI input modules use.
+
+    UniProt isoform suffixes are split off into `isoform_a` and
+    `isoform_b`, taxonomy IDs are integers, references and databases are
+    sets. A partner without UniProt ID has `None` in `uniprot_a` or
+    `uniprot_b`, its taxon still identifies it.
+    """
+
+    IsdbInteraction = collections.namedtuple(
+        'IsdbInteraction',
+        (
+            'uniprot_a',
+            'uniprot_b',
+            'isoform_a',
+            'isoform_b',
+            'taxon_a',
+            'taxon_b',
+            'interaction_type',
+            'ontology_id',
+            'pubmeds',
+            'databases',
+        ),
+    )
+
+    uniprot_a, isoform_a = (
+        inputs_common._try_isoform(record.uniprot_id_a)
+            if record.uniprot_id_a else
+        (None, None)
+    )
+    uniprot_b, isoform_b = (
+        inputs_common._try_isoform(record.uniprot_id_b)
+            if record.uniprot_id_b else
+        (None, None)
+    )
+
+    return IsdbInteraction(
+        uniprot_a = uniprot_a,
+        uniprot_b = uniprot_b,
+        isoform_a = isoform_a,
+        isoform_b = isoform_b,
+        taxon_a = int(record.taxonomy_id_a),
+        taxon_b = int(record.taxonomy_id_b),
+        interaction_type = record.interaction_type,
+        ontology_id = record.ontology_id,
+        pubmeds = _isdb_pubmeds(record.reference),
+        databases = _isdb_databases(record.database),
+    )
 
 
 def isdb_ppi_interactions(
@@ -202,14 +298,15 @@ def isdb_ppi_interactions(
             most recent release is used.
 
     Yields
-        (tuple): Named tuples, each representing one interaction.
+        (tuple): Named tuples, each representing one interaction, see
+            `_isdb_interaction` for the fields.
     """
 
     for record in isdb_raw(version = version):
 
         if record.uniprot_id_a and record.uniprot_id_b:
 
-            yield record
+            yield _isdb_interaction(record)
 
 
 def isdb_protein_organism_interactions(
@@ -230,14 +327,15 @@ def isdb_protein_organism_interactions(
             most recent release is used.
 
     Yields
-        (tuple): Named tuples, each representing one interaction.
+        (tuple): Named tuples, each representing one interaction, see
+            `_isdb_interaction` for the fields.
     """
 
     for record in isdb_raw(version = version):
 
         if bool(record.uniprot_id_a) != bool(record.uniprot_id_b):
 
-            yield record
+            yield _isdb_interaction(record)
 
 
 def isdb_organism_organism_interactions(
@@ -255,11 +353,12 @@ def isdb_organism_organism_interactions(
             most recent release is used.
 
     Yields
-        (tuple): Named tuples, each representing one interaction.
+        (tuple): Named tuples, each representing one interaction, see
+            `_isdb_interaction` for the fields.
     """
 
     for record in isdb_raw(version = version):
 
         if not record.uniprot_id_a and not record.uniprot_id_b:
 
-            yield record
+            yield _isdb_interaction(record)
