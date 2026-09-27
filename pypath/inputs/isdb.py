@@ -282,8 +282,42 @@ def _isdb_interaction(record: tuple) -> tuple:
     )
 
 
+def _isdb_interactions(
+        version: Optional[str] = None,
+        organism: Optional[int] = None,
+    ) -> Generator[tuple, None, None]:
+    """
+    Processed ISDB records, optionally restricted to one organism.
+
+    Args
+        version: Date of an ISDB release, e.g. `2026_05_09`. By default the
+            most recent release is used.
+        organism: NCBI Taxonomy ID. If provided, only the records where
+            at least one of the partners belongs to this organism are
+            yielded; by default all the records are, as ISDB is an
+            interspecies resource.
+
+    Yields
+        (tuple): Named tuples, see `_isdb_interaction` for the fields.
+    """
+
+    # the taxonomy IDs are compared as strings on the raw records, so the
+    # processed record is built only for the ones kept
+    organism = None if organism is None else str(int(organism))
+
+    for record in isdb_raw(version = version):
+
+        if (
+            organism is None or
+            organism in (record.taxonomy_id_a, record.taxonomy_id_b)
+        ):
+
+            yield _isdb_interaction(record)
+
+
 def isdb_ppi_interactions(
         version: Optional[str] = None,
+        organism: Optional[int] = None,
     ) -> Generator[tuple, None, None]:
     """
     Protein level interactions from ISDB.
@@ -296,21 +330,26 @@ def isdb_ppi_interactions(
     Args
         version: Date of an ISDB release, e.g. `2026_05_09`. By default the
             most recent release is used.
+        organism: NCBI Taxonomy ID. If provided, only the records where
+            at least one of the partners belongs to this organism are
+            yielded; by default all the records are, as ISDB is an
+            interspecies resource.
 
     Yields
         (tuple): Named tuples, each representing one interaction, see
             `_isdb_interaction` for the fields.
     """
 
-    for record in isdb_raw(version = version):
+    for i in _isdb_interactions(version = version, organism = organism):
 
-        if record.uniprot_id_a and record.uniprot_id_b:
+        if i.uniprot_a and i.uniprot_b:
 
-            yield _isdb_interaction(record)
+            yield i
 
 
 def isdb_protein_organism_interactions(
         version: Optional[str] = None,
+        organism: Optional[int] = None,
     ) -> Generator[tuple, None, None]:
     """
     Interactions between a protein and an organism from ISDB.
@@ -325,21 +364,26 @@ def isdb_protein_organism_interactions(
     Args
         version: Date of an ISDB release, e.g. `2026_05_09`. By default the
             most recent release is used.
+        organism: NCBI Taxonomy ID. If provided, only the records where
+            at least one of the partners belongs to this organism are
+            yielded; by default all the records are, as ISDB is an
+            interspecies resource.
 
     Yields
         (tuple): Named tuples, each representing one interaction, see
             `_isdb_interaction` for the fields.
     """
 
-    for record in isdb_raw(version = version):
+    for i in _isdb_interactions(version = version, organism = organism):
 
-        if bool(record.uniprot_id_a) != bool(record.uniprot_id_b):
+        if bool(i.uniprot_a) != bool(i.uniprot_b):
 
-            yield _isdb_interaction(record)
+            yield i
 
 
 def isdb_organism_organism_interactions(
         version: Optional[str] = None,
+        organism: Optional[int] = None,
     ) -> Generator[tuple, None, None]:
     """
     Organism level interactions from ISDB.
@@ -351,14 +395,18 @@ def isdb_organism_organism_interactions(
     Args
         version: Date of an ISDB release, e.g. `2026_05_09`. By default the
             most recent release is used.
+        organism: NCBI Taxonomy ID. If provided, only the records where
+            at least one of the partners belongs to this organism are
+            yielded; by default all the records are, as ISDB is an
+            interspecies resource.
 
     Yields
         (tuple): Named tuples, each representing one interaction, see
             `_isdb_interaction` for the fields.
     """
 
-    for record in isdb_raw(version = version):
+    for i in _isdb_interactions(version = version, organism = organism):
 
-        if not record.uniprot_id_a and not record.uniprot_id_b:
+        if not i.uniprot_a and not i.uniprot_b:
 
-            yield _isdb_interaction(record)
+            yield i
