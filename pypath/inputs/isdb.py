@@ -75,6 +75,7 @@ def isdb_latest_version() -> str:
             urls.urls['isdb']['versions'],
             silent = True,
             large = False,
+            cache = False,
         )
 
         versions = sorted(
