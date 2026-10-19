@@ -152,6 +152,10 @@ urls = {
         'url_wsdl': 'http://www.ebi.ac.uk/ontology-lookup/OntologyQuery.wsdl',
         'url': 'https://www.ebi.ac.uk/ols4/api/ontologies',
     },
+    'ncbi_taxonomy': {
+        'label': 'NCBI Taxonomy taxdump',
+        'taxdump': 'https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz',
+    },
     'comppi': {
         'label': 'Compartmentalized PPI database',
         'url': 'http://comppi.linkgroup.hu/downloads'
