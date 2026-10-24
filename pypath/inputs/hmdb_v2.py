@@ -25,7 +25,7 @@ Independent of the older `pypath.inputs.hmdb` package, which parses the
 same XML files into nested dicts and data frames.
 """
 
-from typing import Generator, Literal, Optional
+from typing import Generator, Literal, Optional, Union
 
 import re
 import zipfile
@@ -34,6 +34,7 @@ import collections
 import lxml.etree as etree
 
 import pypath.resources.urls as urls
+import pypath.share.common as common
 import pypath.share.curl as curl
 import pypath.share.session as session
 
@@ -46,6 +47,11 @@ HMDB_RECORD_TAGS = {
     'metabolites': 'metabolite',
     'proteins': 'protein',
 }
+
+# the status of each metabolite: the first two have been found in human
+# samples, `expected` ones are expected but not yet found in humans,
+# `predicted` ones are only predicted
+HMDB_STATUSES = ('quantified', 'detected', 'expected', 'predicted')
 
 # identifiers of the metabolites in other resources: field names in the
 # records and tag names in the metabolites XML
@@ -288,6 +294,44 @@ def _hmdb_records(
             del record.getparent()[0]
 
 
+def _hmdb_status(status: Optional[Union[str, set]]) -> set:
+    """
+    The metabolite statuses to keep, as a set; empty if all are kept.
+
+    Raises on a status not in `HMDB_STATUSES`, as a misspelled one would
+    silently filter out every record.
+    """
+
+    status = common.to_set(status)
+    unknown = status - set(HMDB_STATUSES)
+
+    if unknown:
+
+        raise ValueError(
+            'Unknown metabolite status: `%s`. Use any of `%s`.' % (
+                '`, `'.join(sorted(unknown)),
+                '`, `'.join(HMDB_STATUSES),
+            )
+        )
+
+    return status
+
+
+def _hmdb_metabolite_records(
+        status: set,
+    ) -> Generator[etree._Element, None, None]:
+    """
+    The records of the metabolites XML, only the ones with a status in
+    `status` if it is not empty.
+    """
+
+    for record in _hmdb_records('metabolites'):
+
+        if not status or _hmdb_text(record, 'status') in status:
+
+            yield record
+
+
 def _hmdb_path(path: str) -> str:
     """
     An element path with the HMDB namespace added to each tag.
@@ -430,12 +474,20 @@ def _hmdb_metabolite(record: etree._Element) -> tuple:
     )
 
 
-def hmdb_metabolites() -> Generator[tuple, None, None]:
+def hmdb_metabolites(
+        status: Optional[Union[str, set]] = None,
+    ) -> Generator[tuple, None, None]:
     """
     Metabolites from HMDB.
 
     Identity, structure, chemical taxonomy and locations of the metabolites,
     with their identifiers in other resources.
+
+    Args
+        status: Only the metabolites with these statuses, either one or a
+            set of `quantified`, `detected`, `expected` and `predicted`,
+            e.g. `{'quantified', 'detected'}` for the ones found in human
+            samples. By default all metabolites are included.
 
     Yields
         (tuple): `HmdbMetabolite` named tuples, one for each metabolite.
@@ -443,21 +495,33 @@ def hmdb_metabolites() -> Generator[tuple, None, None]:
             are floats, missing values are `None`.
     """
 
-    for record in _hmdb_records('metabolites'):
+    status = _hmdb_status(status)
+
+    for record in _hmdb_metabolite_records(status):
 
         yield _hmdb_metabolite(record)
 
 
-def hmdb_metabolite_pathway() -> Generator[tuple, None, None]:
+def hmdb_metabolite_pathway(
+        status: Optional[Union[str, set]] = None,
+    ) -> Generator[tuple, None, None]:
     """
     Pathways of the metabolites from HMDB.
+
+    Args
+        status: Only the metabolites with these statuses, either one or a
+            set of `quantified`, `detected`, `expected` and `predicted`,
+            e.g. `{'quantified', 'detected'}` for the ones found in human
+            samples. By default all metabolites are included.
 
     Yields
         (tuple): `HmdbMetabolitePathway` named tuples, one for each
             metabolite-pathway pair.
     """
 
-    for record in _hmdb_records('metabolites'):
+    status = _hmdb_status(status)
+
+    for record in _hmdb_metabolite_records(status):
 
         hmdb_id = _hmdb_text(record, 'accession')
 
@@ -473,9 +537,17 @@ def hmdb_metabolite_pathway() -> Generator[tuple, None, None]:
             )
 
 
-def hmdb_metabolite_disease() -> Generator[tuple, None, None]:
+def hmdb_metabolite_disease(
+        status: Optional[Union[str, set]] = None,
+    ) -> Generator[tuple, None, None]:
     """
     Diseases associated with the metabolites in HMDB.
+
+    Args
+        status: Only the metabolites with these statuses, either one or a
+            set of `quantified`, `detected`, `expected` and `predicted`,
+            e.g. `{'quantified', 'detected'}` for the ones found in human
+            samples. By default all metabolites are included.
 
     Yields
         (tuple): `HmdbMetaboliteDisease` named tuples, one for each
@@ -484,7 +556,9 @@ def hmdb_metabolite_disease() -> Generator[tuple, None, None]:
             ones without PubMed ID.
     """
 
-    for record in _hmdb_records('metabolites'):
+    status = _hmdb_status(status)
+
+    for record in _hmdb_metabolite_records(status):
 
         hmdb_id = _hmdb_text(record, 'accession')
 
@@ -503,6 +577,7 @@ def hmdb_metabolite_disease() -> Generator[tuple, None, None]:
 
 def hmdb_concentrations(
         kind: Literal['all', 'normal', 'abnormal'] = 'all',
+        status: Optional[Union[str, set]] = None,
     ) -> Generator[tuple, None, None]:
     """
     Concentrations of the metabolites in biospecimens from HMDB.
@@ -523,6 +598,10 @@ def hmdb_concentrations(
 
     Args
         kind: Either `normal`, `abnormal`, or `all` for both.
+        status: Only the metabolites with these statuses, either one or a
+            set of `quantified`, `detected`, `expected` and `predicted`,
+            e.g. `{'quantified', 'detected'}` for the ones found in human
+            samples. By default all metabolites are included.
 
     Yields
         (tuple): `HmdbConcentration` named tuples, one for each
@@ -547,7 +626,9 @@ def hmdb_concentrations(
             )
         )
 
-    for record in _hmdb_records('metabolites'):
+    status = _hmdb_status(status)
+
+    for record in _hmdb_metabolite_records(status):
 
         hmdb_id = _hmdb_text(record, 'accession')
 
@@ -598,7 +679,9 @@ def hmdb_proteins() -> Generator[tuple, None, None]:
         )
 
 
-def hmdb_metabolite_protein() -> Generator[tuple, None, None]:
+def hmdb_metabolite_protein(
+        status: Optional[Union[str, set]] = None,
+    ) -> Generator[tuple, None, None]:
     """
     Proteins associated with the metabolites in HMDB.
 
@@ -606,12 +689,20 @@ def hmdb_metabolite_protein() -> Generator[tuple, None, None]:
     references supporting them are in the proteins XML, hence both files
     are processed: first the proteins, to collect the references.
 
+    Args
+        status: Only the metabolites with these statuses, either one or a
+            set of `quantified`, `detected`, `expected` and `predicted`,
+            e.g. `{'quantified', 'detected'}` for the ones found in human
+            samples. By default all metabolites are included.
+
     Yields
         (tuple): `HmdbMetaboliteProtein` named tuples, one for each
             metabolite-protein pair. `pubmed_ids` is empty if the proteins
             XML has no reference for the pair.
     """
 
+    # checked before the proteins XML is read, not after
+    status = _hmdb_status(status)
     pubmeds = collections.defaultdict(set)
 
     for record in _hmdb_records('proteins'):
@@ -629,7 +720,7 @@ def hmdb_metabolite_protein() -> Generator[tuple, None, None]:
 
                 pubmeds[(hmdb_id, protein_id)].add(pubmed)
 
-    for record in _hmdb_records('metabolites'):
+    for record in _hmdb_metabolite_records(status):
 
         hmdb_id = _hmdb_text(record, 'accession')
 
