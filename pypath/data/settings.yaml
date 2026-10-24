@@ -126,6 +126,11 @@ user_agent: 'User-Agent: Mozilla/5.0 (X11; U; Linux i686; en-US; rv:54.0) Gecko/
   Firefox/54.0'
 msigdb_email: omnipathdb@gmail.com
 msigdb_version: '2023.1'
+hmdb_metabolites_path: null
+  # path to a manually downloaded hmdb_metabolites.zip, as HMDB blocks
+  # automated downloads; if None, it is downloaded or taken from the cache
+hmdb_proteins_path: null
+  # same for hmdb_proteins.zip
 
 # Module settings
 network_expand_complexes: false
