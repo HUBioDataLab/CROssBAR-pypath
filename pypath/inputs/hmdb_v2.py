@@ -27,7 +27,6 @@ same XML files into nested dicts and data frames.
 
 from typing import Generator, Literal, Optional, Union
 
-import re
 import zipfile
 import collections
 
@@ -90,36 +89,6 @@ HMDB_CONCENTRATION_TAGS = {
         'patient_information',
     ),
 }
-
-_NUM = r'(\d+(?:\.\d*)?(?:[eE][-+]?\d+)?|\.\d+(?:[eE][-+]?\d+)?)'
-_PM = r'\s*(?:\+/-|\+-|±)\s*'
-_RANGE = _NUM + r'\s*[-–]\s*' + _NUM
-
-# the forms of the concentration values, each with the fields its groups
-# fill in, tried in this order
-HMDB_CONCENTRATION_FORMS = (
-    (re.compile(_NUM), ('value',)),
-    (re.compile(_NUM + _PM + _NUM), ('value', 'value_sd')),
-    (re.compile(_RANGE), ('value_min', 'value_max')),
-    # mean (SD): all values in this form come from seven papers, the two
-    # behind 92% of them (PMID 24704061, 26010610) give mean (SD) in the
-    # tables the values were taken from, as does PMID 23434268
-    (re.compile(_NUM + r'\s*\(\s*' + _NUM + r'\s*\)'), ('value', 'value_sd')),
-    # value (low-high): no single convention, the values in this form come
-    # from more than 500 sources; in the largest ones the value is a mean
-    # or a median, the interval is the full range (PMID 24023812, 28959601),
-    # the interquartile range (PMID 27294788) or percentiles (PMID 8087979)
-    (
-        re.compile(_NUM + r'\s*\(\s*' + _RANGE + r'\s*\)'),
-        ('value', 'value_min', 'value_max'),
-    ),
-    (
-        re.compile(_NUM + _PM + _NUM + r'\s*\(\s*' + _RANGE + r'\s*\)'),
-        ('value', 'value_sd', 'value_min', 'value_max'),
-    ),
-    (re.compile(r'<=?\s*' + _NUM), ('value_max',)),
-    (re.compile(r'>=?\s*' + _NUM), ('value_min',)),
-)
 
 # the records yielded by the functions below, each defined once here rather
 # than per record so all records of a function share one type
@@ -190,11 +159,7 @@ HmdbConcentration = collections.namedtuple(
         'hmdb_id',
         'kind',
         'biospecimen',
-        'value_raw',
         'value',
-        'value_sd',
-        'value_min',
-        'value_max',
         'units',
         'age',
         'sex',
@@ -404,30 +369,6 @@ def _hmdb_references(elem: etree._Element) -> tuple[set, set]:
     return pubmeds, texts
 
 
-def _hmdb_concentration_value(value_raw: Optional[str]) -> dict:
-    """
-    Numbers from a concentration value.
-
-    The values are free text such as `9.8`, `9.8 +/- 1.2`, `9.8 (1.2)`,
-    `4.0-15.0`, `9.8 (4.0-15.0)` or `< 0.5`. Values in none of the forms in
-    `HMDB_CONCENTRATION_FORMS` give no numbers, their text is still
-    available as `value_raw`.
-    """
-
-    values = dict.fromkeys(('value', 'value_sd', 'value_min', 'value_max'))
-
-    if value_raw:
-
-        for form, fields in HMDB_CONCENTRATION_FORMS:
-
-            if match := form.fullmatch(value_raw):
-
-                values.update(zip(fields, map(float, match.groups())))
-                break
-
-    return values
-
-
 def _hmdb_metabolite(record: etree._Element) -> tuple:
     """
     Metabolite record from an element of the metabolites XML.
@@ -583,18 +524,26 @@ def hmdb_concentrations(
     Concentrations of the metabolites in biospecimens from HMDB.
 
     HMDB distinguishes normal concentrations, measured in healthy subjects,
-    and abnormal ones, measured in patients. The original value is kept in
-    `value_raw`, the numbers are taken from it into `value`, `value_sd`,
-    `value_min` and `value_max` where its form is recognized.
+    and abnormal ones, measured in patients.
 
-    The values are collected from many sources, and their meaning follows
-    the source: the units differ between records, so the numbers are
-    comparable only within the same `units`; `value` may be a mean or a
-    median; the spread after `+/-` may be a standard deviation or a
-    standard error; and `value_min` and `value_max` are the bounds of the
-    interval as given, which may be the lowest and highest value measured,
-    the interquartile range or other percentiles. Where HMDB records the
-    statistics used, it is in `comment`, e.g. `Median (range)`.
+    `value` is the concentration as HMDB gives it, as text: a single
+    number, or one with a spread or an interval, e.g. `9.8`,
+    `7.7 +/- 1.9`, `50.65(14.14)`, `8.3 (2.4-28.4)`, `10-17` or `<500`.
+    It is not split into numbers, as their meaning follows the source the
+    value was collected from:
+
+    - in `x (y)`, `y` is the standard deviation: all values in this form
+      come from seven papers, and the tables behind 92% of them (PMID
+      24704061, 26010610) give mean (SD), as does PMID 23434268;
+    - in `x (a-b)`, `x` is a mean or a median, and the interval is the
+      full range (e.g. PMID 24023812, 28959601), the interquartile range
+      (PMID 27294788) or percentiles (PMID 8087979), depending on the
+      source;
+    - the spread after `+/-` may be a standard deviation or a standard
+      error.
+
+    Where HMDB records the statistics used, it is in `comment`, e.g.
+    `Median (range)`. The units differ between records, see `units`.
 
     Args
         kind: Either `normal`, `abnormal`, or `all` for both.
@@ -640,21 +589,19 @@ def hmdb_concentrations(
                 _hmdb_path(f'{container}/concentration')
             ):
 
-                value_raw = _hmdb_text(conc, 'concentration_value')
                 pubmeds, _ = _hmdb_references(conc)
 
                 yield HmdbConcentration(
                     hmdb_id = hmdb_id,
                     kind = _kind,
                     biospecimen = _hmdb_text(conc, 'biospecimen'),
-                    value_raw = value_raw,
+                    value = _hmdb_text(conc, 'concentration_value'),
                     units = _hmdb_text(conc, 'concentration_units'),
                     age = _hmdb_text(conc, age),
                     sex = _hmdb_text(conc, sex),
                     condition = _hmdb_text(conc, condition),
                     comment = _hmdb_text(conc, 'comment'),
                     pubmed_ids = pubmeds,
-                    **_hmdb_concentration_value(value_raw),
                 )
 
 
