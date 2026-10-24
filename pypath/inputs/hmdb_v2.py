@@ -27,6 +27,7 @@ same XML files into nested dicts and data frames.
 
 from typing import Generator, Literal, Optional, Union
 
+import os
 import zipfile
 import collections
 
@@ -36,6 +37,7 @@ import pypath.resources.urls as urls
 import pypath.share.common as common
 import pypath.share.curl as curl
 import pypath.share.session as session
+import pypath.share.settings as settings
 
 _logger = session.Logger(name = 'hmdb_v2_input')
 _log = _logger._log
@@ -190,10 +192,12 @@ def _hmdb_records(
     The records of one HMDB XML file, one element at a time.
 
     HMDB serves its files behind a bot challenge, so the download fails
-    when it is not done in a web browser. In that case the zip file has
-    to be downloaded manually and saved in the pypath cache, the error
-    message tells the exact path. The same message is given if the file
-    in the cache is not a zip file, e.g. a web page saved by mistake.
+    when it is not done in a web browser. The zip file then has to be
+    downloaded manually, and either its path set in the
+    `hmdb_metabolites_path` or `hmdb_proteins_path` setting, or the file
+    saved in the pypath cache; the error message tells the exact path.
+    The same message is given if the file is not a zip file, e.g. a web
+    page saved by mistake.
 
     Each element is cleared after it has been processed, together with the
     ones before it, as the metabolites XML is too large to keep in memory.
@@ -201,21 +205,33 @@ def _hmdb_records(
 
     xml_name = f'hmdb_{dataset}.xml'
     url = urls.urls['hmdb'][dataset]
+    setting = f'hmdb_{dataset}_path'
+    path = settings.get(setting)
     cache_path = curl.Curl(
         url,
         setup = False,
         call = False,
         process = False,
     ).cache_file_name
-    manual = 'download `%s` in a web browser and save it as `%s`' % (
-        url,
-        cache_path,
+    manual = (
+        'download `%s` in a web browser, then either set its path in the '
+        '`%s` setting or save it as `%s`' % (url, setting, cache_path)
     )
+
+    # a path that does not exist would be taken for a URL by `curl.Curl`
+    if path and not os.path.isfile(path):
+
+        msg = 'The file in the `%s` setting does not exist: `%s`.' % (
+            setting,
+            path,
+        )
+        _log(msg)
+        raise RuntimeError(msg)
 
     try:
 
         c = curl.Curl(
-            url,
+            path or url,
             large = True,
             silent = False,
             slow = True,
@@ -225,13 +241,23 @@ def _hmdb_records(
 
     except zipfile.BadZipFile:
 
-        msg = 'The HMDB file in the cache is not a zip file: %s.' % manual
+        msg = 'The HMDB file `%s` is not a zip file: %s.' % (
+            path or cache_path,
+            manual,
+        )
         _log(msg)
         raise RuntimeError(msg)
 
     if c.download_failed or not c.result or xml_name not in c.result:
 
         msg = (
+            'No `%s` in the file in the `%s` setting, `%s`: %s.' % (
+                xml_name,
+                setting,
+                path,
+                manual,
+            )
+                if path else
             'Could not open `%s`. HMDB blocks automated downloads: %s.' % (
                 xml_name,
                 manual,
