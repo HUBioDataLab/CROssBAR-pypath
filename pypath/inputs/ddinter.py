@@ -207,8 +207,9 @@ def ddinter_interactions(return_df: bool = False) -> list[tuple] | pd.DataFrame:
         list of interaction namedtuple with drug ids, drug names, interaction level and actions
     """
     result = [
-        ddinter_drug_interactions(drug = f'DDInter{i}')
-        for i in range(1, ddinter_n_drugs()+1)
+        interaction
+        for i in range(1, ddinter_n_drugs() + 1)
+        for interaction in ddinter_drug_interactions(drug = f'DDInter{i}')
     ]
 
     return pd.DataFrame(result) if return_df else result
