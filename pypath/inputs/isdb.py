@@ -40,6 +40,8 @@ ISDB_FALLBACK_VERSION = '2026_05_09'
 # repository; the search indices in the same directory are not releases
 ISDB_VERSION_FILE = re.compile(r'ISDB_(\d{4}_\d{2}_\d{2})\.tsv\.gz$')
 
+# column names as in the releases from `2026_05_09` on; earlier releases
+# separate the words by spaces (`Serial Number`) and are not supported
 ISDB_COLUMNS = (
     'Serial.Number',
     'Taxonomy.ID.A',
@@ -56,8 +58,15 @@ ISDB_COLUMNS = (
     'Database',
 )
 
+_PUBMED_PREFIX = re.compile(r'^(?:pubmed|pmid):', re.IGNORECASE)
+_QUALIFIER = re.compile(r'\(.*\)$')
+
+_ONTOLOGY_ID = re.compile(r'\b(MI|RO)[:_](\d+)')
+
 # the processed record yielded by the `_interactions` functions, defined
-# once here rather than per record so all records share one type
+# once here rather than per record so all records share one type; the
+# interaction types and ontology IDs are sets, as both fields list several
+# terms per record, and the two lists are not aligned with each other
 IsdbInteraction = collections.namedtuple(
     'IsdbInteraction',
     (
@@ -67,8 +76,8 @@ IsdbInteraction = collections.namedtuple(
         'isoform_b',
         'taxon_a',
         'taxon_b',
-        'interaction_type',
-        'ontology_id',
+        'interaction_types',
+        'ontology_ids',
         'pubmeds',
         'databases',
     ),
@@ -127,6 +136,13 @@ def isdb_raw(version: Optional[str] = None) -> Generator[tuple, None, None]:
 
     The distributed file is a gzipped, quoted TSV with a byte order mark,
     all its fields are carried over to the named tuples as they are.
+
+    Only the releases from `2026_05_09` on are supported. The earlier ones
+    use different column names, hence reading them raises a
+    `RuntimeError`. They also contain intraspecies interactions (about
+    2.5 million records in `2026_04_02`, mostly from BioGRID and IntAct),
+    which the later releases leave out, so the record counts of the two
+    are not comparable.
 
     Args
         version: Date of an ISDB release, e.g. `2026_05_09`. By default the
@@ -210,10 +226,12 @@ def _isdb_pubmeds(reference: str) -> set:
     """
     PubMed IDs from the `Reference` field of an ISDB record.
 
-    The field is a `|` separated mix of `pubmed:`, `PMID:` (sometimes with
-    a comma separated list), bare PMIDs, `doi:`, `imex:` and `mint:` items,
-    a few records contain line breaks. Only the numeric PubMed IDs are kept,
-    values such as `pubmed:DIP-17212S` or `PMID:nan` are dropped.
+    The field is a `|` separated mix of `pubmed:`, `PMID:`, bare PMIDs,
+    `doi:`, `imex:` and `mint:` items, a few records contain line breaks.
+    A `PMID:` item may hold a `,` or `;` separated list, a doubled prefix
+    (`PMID:pubmed:...`) or a trailing qualifier (`...(identity)`). Only
+    the numeric PubMed IDs are kept, values such as `pubmed:DIP-17212S` or
+    `PMID:nan` are dropped.
     """
 
     pubmeds = set()
@@ -222,19 +240,20 @@ def _isdb_pubmeds(reference: str) -> set:
 
         item = item.strip()
 
-        if item.startswith('pubmed:'):
+        candidates = (
+            re.split(r'[,;]', _PUBMED_PREFIX.sub('', item))
+                if _PUBMED_PREFIX.match(item) else
+            (item,)
+        )
 
-            candidates = (item[7:],)
+        for candidate in candidates:
 
-        elif item.startswith('PMID:'):
+            candidate = _PUBMED_PREFIX.sub('', candidate.strip())
+            candidate = _QUALIFIER.sub('', candidate).strip()
 
-            candidates = item[5:].split(',')
+            if candidate.isdigit():
 
-        else:
-
-            candidates = (item,)
-
-        pubmeds.update(c.strip() for c in candidates if c.strip().isdigit())
+                pubmeds.add(candidate)
 
     return pubmeds
 
@@ -248,15 +267,68 @@ def _isdb_databases(database: str) -> set:
     return {db.strip() for db in database.split('|') if db.strip()}
 
 
+def _isdb_interaction_types(interaction_type: str) -> set:
+    """
+    Interaction types from the `Interaction.Type` field of an ISDB record.
+
+    The field is `|` separated, a few records from PMC9897028 separate the
+    types by `,`. The PSI-MI names carry the unbalanced closing parenthesis
+    and quote of their MITAB source, e.g. `physical association)` or
+    `synthetic rescue (sensu biogrid)")`, these are removed. Items not
+    starting with a letter, such as `-mediated` or `?induced`, are fragments
+    of text mined terms from PHILM2Web and are dropped. The names are kept
+    otherwise as in the source resources, e.g. `hasHost` (GloBI), `Helminth`
+    (GMPD) or `Associate:Consumer:Herbivore` (SIAD).
+    """
+
+    types = set()
+
+    for item in re.split(r'[|,]', interaction_type):
+
+        item = item.strip()
+
+        while item and (
+            item[-1] == '"' or
+            (item[-1] == ')' and item.count(')') > item.count('('))
+        ):
+
+            item = item[:-1].rstrip()
+
+        if item[:1].isalpha():
+
+            types.add(item)
+
+    return types
+
+
+def _isdb_ontology_ids(ontology_id: str) -> set:
+    """
+    Ontology terms from the `Ontology.ID` field of an ISDB record.
+
+    The field is `|` separated, PSI-MI terms come as `psi-mi:"MI:0915"`,
+    `psi-mi:MI:0915` or `MI:0915`, Relation Ontology terms as OBO PURLs.
+    All are normalised to CURIEs (`MI:0915`, `RO:0002454`). Other values,
+    `no:match` from GloBI and a few malformed ones (`dip:dip:0914`), are
+    dropped.
+    """
+
+    return {
+        '%s:%s' % match.groups()
+        for item in ontology_id.split('|')
+        if (match := _ONTOLOGY_ID.search(item))
+    }
+
+
 def _isdb_interaction(record: tuple) -> tuple:
     """
     Processed record from a raw ISDB record, with only the fields needed
     for an interaction and in the form the other PPI input modules use.
 
     UniProt isoform suffixes are split off into `isoform_a` and
-    `isoform_b`, taxonomy IDs are integers, references and databases are
-    sets. A partner without UniProt ID has `None` in `uniprot_a` or
-    `uniprot_b`, its taxon still identifies it.
+    `isoform_b`, taxonomy IDs are integers, interaction types, ontology
+    IDs, references and databases are sets. A partner without UniProt ID
+    has `None` in `uniprot_a` or `uniprot_b`, its taxon still identifies
+    it.
     """
 
     uniprot_a, isoform_a = (
@@ -277,8 +349,8 @@ def _isdb_interaction(record: tuple) -> tuple:
         isoform_b = isoform_b,
         taxon_a = int(record.taxonomy_id_a),
         taxon_b = int(record.taxonomy_id_b),
-        interaction_type = record.interaction_type,
-        ontology_id = record.ontology_id,
+        interaction_types = _isdb_interaction_types(record.interaction_type),
+        ontology_ids = _isdb_ontology_ids(record.ontology_id),
         pubmeds = _isdb_pubmeds(record.reference),
         databases = _isdb_databases(record.database),
     )
