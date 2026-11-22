@@ -193,6 +193,16 @@ HmdbMetaboliteOntology = collections.namedtuple(
     ),
 )
 
+HmdbExperimentalProperty = collections.namedtuple(
+    'HmdbExperimentalProperty',
+    (
+        'hmdb_id',
+        'kind',
+        'value',
+        'source',
+    ),
+)
+
 HmdbProtein = collections.namedtuple(
     'HmdbProtein',
     (
@@ -733,6 +743,50 @@ def hmdb_metabolite_ontology(
         for root in record.iterfind(_hmdb_path('ontology/root')):
 
             yield from _hmdb_ontology(hmdb_id, root)
+
+
+def hmdb_experimental_properties(
+        status: Optional[Union[str, set]] = None,
+    ) -> Generator[tuple, None, None]:
+    """
+    Experimental physico-chemical properties of the metabolites from HMDB.
+
+    Four kinds of properties: `logp`, `water_solubility`, `melting_point`
+    and `boiling_point`. As for the concentrations, `value` is the text as
+    HMDB gives it, with its unit and conditions, e.g. `200 g/kg`,
+    `187.0 - 189.5 °C` or `139.80 °C. @  760.00 mm Hg`; `logp` has no unit.
+    Not all values are measured: some are marked `(est)` in `value`, or
+    come from the source `Extrapolated`. The predicted properties of the
+    metabolites XML are not included.
+
+    Args
+        status: Only the metabolites with these statuses, either one or a
+            set of `quantified`, `detected`, `expected` and `predicted`,
+            e.g. `{'quantified', 'detected'}` for the ones found in human
+            samples. By default all metabolites are included.
+
+    Yields
+        (tuple): `HmdbExperimentalProperty` named tuples, one for each
+            property of each metabolite. `source` is a reference, a
+            database or a URL, `None` if HMDB gives none.
+    """
+
+    status = _hmdb_status(status)
+
+    for record in _hmdb_metabolite_records(status):
+
+        hmdb_id = _hmdb_text(record, 'accession')
+
+        for prop in record.iterfind(
+            _hmdb_path('experimental_properties/property')
+        ):
+
+            yield HmdbExperimentalProperty(
+                hmdb_id = hmdb_id,
+                kind = _hmdb_text(prop, 'kind'),
+                value = _hmdb_text(prop, 'value'),
+                source = _hmdb_text(prop, 'source'),
+            )
 
 
 def hmdb_proteins() -> Generator[tuple, None, None]:
