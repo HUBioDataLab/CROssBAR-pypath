@@ -110,10 +110,12 @@ HmdbMetabolite = collections.namedtuple(
         'secondary_ids',
         'name',
         'synonyms',
+        'description',
         'status',
         'formula',
         'avg_mw',
         'mono_mw',
+        'state',
         'smiles',
         'inchi',
         'inchikey',
@@ -184,6 +186,7 @@ HmdbProtein = collections.namedtuple(
     'HmdbProtein',
     (
         'hmdb_protein_id',
+        'name',
         'uniprot_id',
         'gene_symbol',
         'hgnc_id',
@@ -416,11 +419,13 @@ def _hmdb_metabolite(record: etree._Element) -> tuple:
         secondary_ids = _hmdb_texts(record, 'secondary_accessions/accession'),
         name = _hmdb_text(record, 'name'),
         synonyms = _hmdb_texts(record, 'synonyms/synonym'),
+        description = _hmdb_text(record, 'description'),
         status = _hmdb_text(record, 'status'),
         formula = _hmdb_text(record, 'chemical_formula'),
         avg_mw = _hmdb_float(record, 'average_molecular_weight'),
         # sic, the tag name is misspelled in HMDB
         mono_mw = _hmdb_float(record, 'monisotopic_molecular_weight'),
+        state = _hmdb_text(record, 'state'),
         smiles = _hmdb_text(record, 'smiles'),
         inchi = _hmdb_text(record, 'inchi'),
         inchikey = _hmdb_text(record, 'inchikey'),
@@ -456,8 +461,8 @@ def hmdb_metabolites(
     """
     Metabolites from HMDB.
 
-    Identity, structure, chemical taxonomy and locations of the metabolites,
-    with their identifiers in other resources.
+    Identity, description, structure, physical state, chemical taxonomy and
+    locations of the metabolites, with their identifiers in other resources.
 
     Args
         status: Only the metabolites with these statuses, either one or a
@@ -652,6 +657,7 @@ def hmdb_proteins() -> Generator[tuple, None, None]:
 
         yield HmdbProtein(
             hmdb_protein_id = _hmdb_text(record, 'accession'),
+            name = _hmdb_text(record, 'name'),
             uniprot_id = _hmdb_text(record, 'uniprot_id'),
             gene_symbol = _hmdb_text(record, 'gene_name'),
             hgnc_id = _hmdb_text(record, 'hgnc_id'),
