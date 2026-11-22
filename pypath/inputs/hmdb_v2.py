@@ -92,6 +92,15 @@ HMDB_CONCENTRATION_TAGS = {
     ),
 }
 
+# fields of the metabolite-protein records describing the protein: field
+# names in the records and tag names, the same in both XMLs
+HMDB_PAIR_PROTEIN_TAGS = {
+    'uniprot_id': 'uniprot_id',
+    'gene_symbol': 'gene_name',
+    'protein_name': 'name',
+    'protein_type': 'protein_type',
+}
+
 # the records yielded by the functions below, each defined once here rather
 # than per record so all records of a function share one type
 HmdbMetabolite = collections.namedtuple(
@@ -652,15 +661,37 @@ def hmdb_proteins() -> Generator[tuple, None, None]:
         )
 
 
+def _hmdb_pair_protein(elem: etree._Element) -> dict:
+    """
+    The protein fields of a metabolite-protein record, from a protein in
+    either XML.
+    """
+
+    return {
+        field: _hmdb_text(elem, tag)
+        for field, tag in HMDB_PAIR_PROTEIN_TAGS.items()
+    }
+
+
 def hmdb_metabolite_protein(
         status: Optional[Union[str, set]] = None,
     ) -> Generator[tuple, None, None]:
     """
     Proteins associated with the metabolites in HMDB.
 
-    The associations are listed in the metabolites XML, while the
-    references supporting them are in the proteins XML, hence both files
-    are processed: first the proteins, to collect the references.
+    Both XML files list the associations: the metabolites XML under each
+    metabolite (`protein_associations`), the proteins XML under each
+    protein (`metabolite_associations`). The proteins XML has about twice
+    as many, most of the additional ones are of predicted metabolites. The
+    references supporting the associations are only in the proteins XML.
+
+    Hence both files are processed: first the proteins, to collect their
+    associations, references and fields, then the metabolites. For each
+    metabolite its pairs from the metabolites XML are yielded first, then
+    the ones only in the proteins XML, with the protein fields taken from
+    the protein record. The status of a metabolite is only known from the
+    metabolites XML, so a pair of a metabolite missing from it would be
+    left out; in HMDB 5.0 there is none.
 
     Args
         status: Only the metabolites with these statuses, either one or a
@@ -677,10 +708,23 @@ def hmdb_metabolite_protein(
     # checked before the proteins XML is read, not after
     status = _hmdb_status(status)
     pubmeds = collections.defaultdict(set)
+    proteins = {}
+    associations = collections.defaultdict(list)
 
     for record in _hmdb_records('proteins'):
 
         protein_id = _hmdb_text(record, 'accession')
+        proteins[protein_id] = _hmdb_pair_protein(record)
+
+        for metabolite in record.iterfind(
+            _hmdb_path('metabolite_associations/metabolite')
+        ):
+
+            hmdb_id = _hmdb_text(metabolite, 'accession')
+
+            if hmdb_id:
+
+                associations[hmdb_id].append(protein_id)
 
         for ref in record.iterfind(
             _hmdb_path('metabolite_references/metabolite_reference')
@@ -696,21 +740,29 @@ def hmdb_metabolite_protein(
     for record in _hmdb_metabolite_records(status):
 
         hmdb_id = _hmdb_text(record, 'accession')
+        pairs = [
+            (
+                _hmdb_text(protein, 'protein_accession'),
+                _hmdb_pair_protein(protein),
+            )
+            for protein in record.iterfind(
+                _hmdb_path('protein_associations/protein')
+            )
+        ]
+        listed = {protein_id for protein_id, _ in pairs}
+        pairs.extend(
+            (protein_id, proteins[protein_id])
+            for protein_id in associations.pop(hmdb_id, ())
+            if protein_id not in listed
+        )
 
-        for protein in record.iterfind(
-            _hmdb_path('protein_associations/protein')
-        ):
-
-            protein_id = _hmdb_text(protein, 'protein_accession')
+        for protein_id, protein in pairs:
 
             yield HmdbMetaboliteProtein(
                 hmdb_id = hmdb_id,
                 hmdb_protein_id = protein_id,
-                uniprot_id = _hmdb_text(protein, 'uniprot_id'),
-                gene_symbol = _hmdb_text(protein, 'gene_name'),
-                protein_name = _hmdb_text(protein, 'name'),
-                protein_type = _hmdb_text(protein, 'protein_type'),
                 pubmed_ids = set(pubmeds.get((hmdb_id, protein_id), ())),
+                **protein,
             )
 
 
