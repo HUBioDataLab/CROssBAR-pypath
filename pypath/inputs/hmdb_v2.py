@@ -196,6 +196,16 @@ HmdbProtein = collections.namedtuple(
     ),
 )
 
+HmdbProteinPathway = collections.namedtuple(
+    'HmdbProteinPathway',
+    (
+        'hmdb_protein_id',
+        'pathway_name',
+        'smpdb_id',
+        'kegg_map_id',
+    ),
+)
+
 
 def _hmdb_records(
         dataset: Literal['metabolites', 'proteins'],
@@ -665,6 +675,29 @@ def hmdb_proteins() -> Generator[tuple, None, None]:
             general_function = _hmdb_text(record, 'general_function'),
             specific_function = _hmdb_text(record, 'specific_function'),
         )
+
+
+def hmdb_protein_pathway() -> Generator[tuple, None, None]:
+    """
+    Pathways of the proteins from HMDB.
+
+    Yields
+        (tuple): `HmdbProteinPathway` named tuples, one for each
+            protein-pathway pair.
+    """
+
+    for record in _hmdb_records('proteins'):
+
+        protein_id = _hmdb_text(record, 'accession')
+
+        for pathway in record.iterfind(_hmdb_path('pathways/pathway')):
+
+            yield HmdbProteinPathway(
+                hmdb_protein_id = protein_id,
+                pathway_name = _hmdb_text(pathway, 'name'),
+                smpdb_id = _hmdb_text(pathway, 'smpdb_id'),
+                kegg_map_id = _hmdb_text(pathway, 'kegg_map_id'),
+            )
 
 
 def _hmdb_pair_protein(elem: etree._Element) -> dict:
