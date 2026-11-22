@@ -182,6 +182,17 @@ HmdbConcentration = collections.namedtuple(
     ),
 )
 
+HmdbMetaboliteOntology = collections.namedtuple(
+    'HmdbMetaboliteOntology',
+    (
+        'hmdb_id',
+        'root',
+        'term',
+        'level',
+        'parent_term',
+    ),
+)
+
 HmdbProtein = collections.namedtuple(
     'HmdbProtein',
     (
@@ -653,6 +664,75 @@ def hmdb_concentrations(
                     comment = _hmdb_text(conc, 'comment'),
                     pubmed_ids = pubmeds,
                 )
+
+
+def _hmdb_ontology(
+        hmdb_id: str,
+        elem: etree._Element,
+        root: Optional[str] = None,
+        parent_term: Optional[str] = None,
+    ) -> Generator[tuple, None, None]:
+    """
+    Ontology records of a metabolite from a term and all terms below it.
+    """
+
+    term = _hmdb_text(elem, 'term')
+    root = root or term
+    level = _hmdb_text(elem, 'level')
+
+    yield HmdbMetaboliteOntology(
+        hmdb_id = hmdb_id,
+        root = root,
+        term = term,
+        level = int(level) if level and level.isdigit() else None,
+        parent_term = parent_term,
+    )
+
+    for descendant in elem.iterfind(_hmdb_path('descendants/descendant')):
+
+        yield from _hmdb_ontology(hmdb_id, descendant, root, term)
+
+
+def hmdb_metabolite_ontology(
+        status: Optional[Union[str, set]] = None,
+    ) -> Generator[tuple, None, None]:
+    """
+    ChemFOnt classification of the metabolites from HMDB.
+
+    The `ontology` of a metabolite is a tree with up to four roots:
+    `Disposition` (source, e.g. endogenous, food, or the organism it comes
+    from, biological location and route of exposure), `Role` (e.g. drug,
+    nutrient, toxin), `Process` and `Physiological effect`. Each term of
+    the tree is one record, the roots and the intermediate terms included,
+    so the higher levels can be used for filtering. In HMDB 5.0 a term has
+    the same parent under every metabolite, hence a term is identified by
+    its name.
+
+    The definitions and synonyms of the terms are not included, as they
+    describe the terms, not the metabolites.
+
+    Args
+        status: Only the metabolites with these statuses, either one or a
+            set of `quantified`, `detected`, `expected` and `predicted`,
+            e.g. `{'quantified', 'detected'}` for the ones found in human
+            samples. By default all metabolites are included.
+
+    Yields
+        (tuple): `HmdbMetaboliteOntology` named tuples, one for each term
+            of each metabolite. `root` is the root term the term belongs
+            to, `level` is 1 for the roots, `parent_term` is `None` for the
+            roots.
+    """
+
+    status = _hmdb_status(status)
+
+    for record in _hmdb_metabolite_records(status):
+
+        hmdb_id = _hmdb_text(record, 'accession')
+
+        for root in record.iterfind(_hmdb_path('ontology/root')):
+
+            yield from _hmdb_ontology(hmdb_id, root)
 
 
 def hmdb_proteins() -> Generator[tuple, None, None]:
