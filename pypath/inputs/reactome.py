@@ -26,6 +26,7 @@ import collections
 import pandas as pd
 
 import pypath.share.curl as curl
+import pypath.share.settings as settings
 import pypath.resources.urls as urls
 
 
@@ -100,7 +101,12 @@ def _reactome_data_gen(
     ) -> Generator[tuple]:
 
     url = urls.urls['reactome'][dataset]
-    c = curl.Curl(url, large = True)
+    # reactome.org answers 403 to pycurl's default user agent
+    c = curl.Curl(
+        url,
+        large = True,
+        req_headers = [settings.get('user_agent')],
+    )
 
 
     result = set()
