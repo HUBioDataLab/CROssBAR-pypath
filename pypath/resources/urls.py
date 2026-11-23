@@ -1688,10 +1688,10 @@ urls = {
             'DDInter is a comprehensive, professional, and open-access '
             'database specific to drug-drug interactions.'
         ),
-        'source': 'http://ddinter.scbdd.com/ddinter/data-source/',
-        'mapping': 'http://ddinter.scbdd.com/ddinter/drug-detail/%s',
+        'source': 'https://ddinter.scbdd.com/ddinter/data-source/',
+        'mapping': 'https://ddinter.scbdd.com/ddinter/drug-detail/%s',
         'interaction':
-            'http://ddinter.scbdd.com/ddinter/grapher-datasource/%s',
+            'https://ddinter.scbdd.com/ddinter/grapher-datasource/%s',
     },
     'ddinter_v2': {
         'label': (
