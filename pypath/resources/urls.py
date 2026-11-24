@@ -1662,7 +1662,7 @@ urls = {
     },
     'twosides': {
         'label': 'A comprehensive database drug-drug-effect relationships',
-        'url': 'https://tatonettilab.org/resources/nsides/TWOSIDES.csv.gz'
+        'url': 'https://tatonettilab-resources.s3.amazonaws.com/nsides/TWOSIDES.csv.gz'
     },
     'offsides': {
         'label': (
